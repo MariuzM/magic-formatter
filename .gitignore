@@ -1,0 +1,5 @@
+core/target/
+extension/bin/
+extension/*.vsix
+extension/node_modules/
+.DS_Store

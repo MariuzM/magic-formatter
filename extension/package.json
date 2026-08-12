@@ -1,0 +1,39 @@
+{
+  "name": "rustfmt-magic",
+  "displayName": "Rustfmt Magic",
+  "description": "Rust formatter with user-controlled layout: magic trailing commas, first-argument expansion, single-line ifs, and = alignment on top of rustfmt.",
+  "publisher": "mariuzm",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MariuzM/rustfmt-magic.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Formatters"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:rust"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Rustfmt Magic",
+      "properties": {
+        "rustfmtMagic.binaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to a rustfmt-magic binary. If empty, the platform binary bundled in the extension's bin/ folder is used."
+        },
+        "rustfmtMagic.rustfmtPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the rustfmt binary to delegate to. If empty, ~/.cargo/bin/rustfmt is used, then rustfmt on PATH."
+        }
+      }
+    }
+  }
+}
