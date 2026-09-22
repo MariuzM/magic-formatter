@@ -33,6 +33,15 @@ if RegisterClassExW(&window_class) == 0 { return 1; };
 
 Write it multiline and it stays multiline. Works for `if ... else ...` chains too.
 
+**Method chains** — put the first chained suffix on a new line and every suffix stays on its own line:
+
+```rust
+let port = std::env::var("PORT")
+    .ok()
+    .and_then(|p| p.parse::<u16>().ok())
+    .unwrap_or(4002);
+```
+
 **`=` alignment** — consecutive single-line assignments and declarations at the same indent get their `=` aligned:
 
 ```rust

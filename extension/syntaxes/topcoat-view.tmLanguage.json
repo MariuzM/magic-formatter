@@ -1,0 +1,206 @@
+{
+  "scopeName": "topcoat.view.injection",
+  "injectionSelector": "L:source.rust -comment -string",
+  "patterns": [
+    { "include": "#view-macro" }
+  ],
+  "repository": {
+    "view-macro": {
+      "begin": "\\b(view!)\\s*(\\{)",
+      "beginCaptures": {
+        "1": { "name": "entity.name.function.macro.rust" },
+        "2": { "name": "punctuation.brackets.curly.rust" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.brackets.curly.rust" }
+      },
+      "patterns": [
+        { "include": "#content" }
+      ]
+    },
+    "content": {
+      "patterns": [
+        { "include": "source.rust#comments" },
+        { "include": "source.rust#block-comments" },
+        { "include": "source.rust#strings" },
+        { "include": "#doctype" },
+        { "include": "#tag-close" },
+        { "include": "#tag-open" },
+        { "include": "#control-head" },
+        { "include": "#block" },
+        { "include": "#reactive-expr" },
+        { "include": "#expr" },
+        { "include": "#component-call" },
+        { "include": "source.rust" }
+      ]
+    },
+    "doctype": {
+      "name": "meta.tag.metadata.doctype.rust",
+      "match": "(<!)(DOCTYPE)(\\s+[A-Za-z]+)?\\s*(>)",
+      "captures": {
+        "1": { "name": "punctuation.definition.tag.begin.rust" },
+        "2": { "name": "entity.name.tag.rust" },
+        "3": { "name": "entity.other.attribute-name.rust" },
+        "4": { "name": "punctuation.definition.tag.end.rust" }
+      }
+    },
+    "tag-close": {
+      "name": "meta.tag.rust",
+      "match": "(</)([A-Za-z][\\w.-]*)\\s*(>)",
+      "captures": {
+        "1": { "name": "punctuation.definition.tag.begin.rust" },
+        "2": { "name": "entity.name.tag.rust" },
+        "3": { "name": "punctuation.definition.tag.end.rust" }
+      }
+    },
+    "tag-open": {
+      "name": "meta.tag.rust",
+      "begin": "(<)([A-Za-z][\\w.-]*)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.rust" },
+        "2": { "name": "entity.name.tag.rust" }
+      },
+      "end": "(/?>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.end.rust" }
+      },
+      "patterns": [
+        { "include": "source.rust#comments" },
+        { "include": "source.rust#block-comments" },
+        { "include": "source.rust#strings" },
+        { "include": "#control-head" },
+        { "include": "#attr-block" },
+        { "include": "#reactive-expr" },
+        { "include": "#expr" },
+        { "include": "#attribute-name" },
+        {
+          "name": "keyword.operator.assignment.rust",
+          "match": "="
+        }
+      ]
+    },
+    "attribute-name": {
+      "name": "entity.other.attribute-name.rust",
+      "match": "[@:]?[A-Za-z_][\\w:.-]*"
+    },
+    "attr-block": {
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": { "name": "punctuation.brackets.curly.rust" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.brackets.curly.rust" }
+      },
+      "patterns": [
+        { "include": "source.rust#strings" },
+        { "include": "#control-head" },
+        { "include": "#attr-block" },
+        { "include": "#reactive-expr" },
+        { "include": "#expr" },
+        { "include": "#attribute-name" },
+        {
+          "name": "keyword.operator.assignment.rust",
+          "match": "="
+        }
+      ]
+    },
+    "control-head": {
+      "begin": "\\b(if|else\\s+if|for|match|while|let)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.rust" }
+      },
+      "end": "(?=\\{)|;",
+      "endCaptures": {
+        "0": { "name": "punctuation.semi.rust" }
+      },
+      "patterns": [
+        { "include": "#nested-parens" },
+        { "include": "source.rust" }
+      ]
+    },
+    "block": {
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": { "name": "punctuation.brackets.curly.rust" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.brackets.curly.rust" }
+      },
+      "patterns": [
+        { "include": "#content" }
+      ]
+    },
+    "reactive-expr": {
+      "begin": "(\\$)(\\()",
+      "beginCaptures": {
+        "1": { "name": "keyword.operator.macro.dollar.rust" },
+        "2": { "name": "punctuation.brackets.round.rust" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.brackets.round.rust" }
+      },
+      "patterns": [
+        { "include": "#nested-parens" },
+        { "include": "source.rust" }
+      ]
+    },
+    "expr": {
+      "begin": "\\(",
+      "beginCaptures": {
+        "0": { "name": "punctuation.brackets.round.rust" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.brackets.round.rust" }
+      },
+      "patterns": [
+        { "include": "#nested-parens" },
+        { "include": "source.rust" }
+      ]
+    },
+    "nested-parens": {
+      "begin": "\\(",
+      "beginCaptures": {
+        "0": { "name": "punctuation.brackets.round.rust" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.brackets.round.rust" }
+      },
+      "patterns": [
+        { "include": "#nested-parens" },
+        { "include": "source.rust" }
+      ]
+    },
+    "component-call": {
+      "begin": "\\b((?:[A-Za-z_]\\w*::)*)([a-z_]\\w*)\\s*(\\()",
+      "beginCaptures": {
+        "1": {
+          "patterns": [
+            { "include": "source.rust#namespaces" }
+          ]
+        },
+        "2": { "name": "entity.name.function.rust" },
+        "3": { "name": "punctuation.brackets.round.rust" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.brackets.round.rust" }
+      },
+      "patterns": [
+        {
+          "match": "\\b([a-z_]\\w*)\\s*(:)(?!:)",
+          "captures": {
+            "1": { "name": "variable.parameter.rust" },
+            "2": { "name": "keyword.operator.key-value.rust" }
+          }
+        },
+        { "include": "#content" }
+      ]
+    }
+  }
+}

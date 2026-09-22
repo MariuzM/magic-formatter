@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
-use std::process::{exit, Command, Stdio};
+use std::process::{Command, Stdio, exit};
 
 const MARK: &str          = concat!("// __rustfmt_", "magic__");
 const KEYWORDS: [&str; 6] = ["if", "while", "for", "match", "loop", "else"];
@@ -104,6 +104,14 @@ struct Frame {
     trailing:       bool,
     awaiting_first: bool,
     first_on_next:  bool,
+}
+
+#[derive(Default)]
+struct ChainFrame {
+    multiline:               Option<bool>,
+    last_token_line:         Option<usize>,
+    generic_depth:           usize,
+    generic_delimiter_depth: usize,
 }
 
 fn looks_like_tuple(s: &[char], opener_pos: usize) -> bool {
@@ -237,6 +245,169 @@ fn find_insert_points(s: &[char]) -> Vec<usize> {
     }
     points.sort_unstable();
     points
+}
+
+fn is_chain_dot(s: &[char], i: usize) -> bool {
+    if s.get(i).copied() != Some('.') || s.get(i + 1).copied() == Some('.') || i > 0 && s[i - 1] == '.' {
+        return false;
+    }
+    let Some(next) = s.get(i + 1).copied() else { return false };
+    if !(next == '_' || next.is_alphanumeric()) {
+        return false;
+    }
+    !(next.is_ascii_digit() && i > 0 && s[i - 1].is_ascii_digit())
+}
+
+fn find_chain_insert_points(s: &[char]) -> Vec<usize> {
+    let n                       = s.len();
+    let mut i                   = 0;
+    let mut line                = 0;
+    let mut stack               = vec![ChainFrame::default()];
+    let mut points: Vec<usize>  = Vec::new();
+
+    while i < n {
+        if let Some((content, hashes)) = raw_string_open(s, i) {
+            let end = raw_string_close(s, content, hashes);
+            line += s[i..end].iter().filter(|&&c| c == '\n').count();
+            stack.last_mut().unwrap().last_token_line = Some(line);
+            i = end;
+            continue;
+        }
+        let c = s[i];
+        if c == '"' {
+            i += 1;
+            while i < n && s[i] != '"' {
+                if s[i] == '\n' {
+                    line += 1;
+                }
+                i += if s[i] == '\\' { 2 } else { 1 };
+            }
+            i += 1;
+            stack.last_mut().unwrap().last_token_line = Some(line);
+            continue;
+        }
+        if c == '\''
+            && let Some(end) = char_literal_end(s, i)
+        {
+            stack.last_mut().unwrap().last_token_line = Some(line);
+            i = end;
+            continue;
+        }
+        if starts_at(s, i, "//") {
+            while i < n && s[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        if starts_at(s, i, "/*") {
+            let mut depth = 1;
+            i += 2;
+            while i < n && depth > 0 {
+                if starts_at(s, i, "/*") {
+                    depth += 1;
+                    i += 2;
+                } else if starts_at(s, i, "*/") {
+                    depth -= 1;
+                    i += 2;
+                } else {
+                    if s[i] == '\n' {
+                        line += 1;
+                    }
+                    i += 1;
+                }
+            }
+            continue;
+        }
+        if c == '\n' {
+            line += 1;
+            i += 1;
+            continue;
+        }
+        if matches!(c, ' ' | '\t' | '\r') {
+            i += 1;
+            continue;
+        }
+        if starts_at(s, i, "::<") {
+            let frame = stack.last_mut().unwrap();
+            frame.generic_depth += 1;
+            frame.last_token_line = Some(line);
+            i += 3;
+            continue;
+        }
+        if stack.last().unwrap().generic_depth > 0 {
+            let frame = stack.last_mut().unwrap();
+            if matches!(c, '(' | '[' | '{') {
+                frame.generic_delimiter_depth += 1;
+            } else if matches!(c, ')' | ']' | '}') && frame.generic_delimiter_depth > 0 {
+                frame.generic_delimiter_depth -= 1;
+            } else if c == '<' && frame.generic_delimiter_depth == 0 {
+                frame.generic_depth += 1;
+            } else if c == '>' && frame.generic_delimiter_depth == 0 && (i == 0 || s[i - 1] != '-') {
+                frame.generic_depth -= 1;
+            }
+            frame.last_token_line = Some(line);
+            i += 1;
+            continue;
+        }
+        if matches!(c, '(' | '[' | '{') {
+            let frame = stack.last_mut().unwrap();
+            if c == '{' {
+                frame.multiline = None;
+            }
+            frame.last_token_line = Some(line);
+            stack.push(ChainFrame::default());
+            i += 1;
+            continue;
+        }
+        if matches!(c, ')' | ']' | '}') {
+            if stack.len() > 1 {
+                stack.pop();
+            }
+            stack.last_mut().unwrap().last_token_line = Some(line);
+            i += 1;
+            continue;
+        }
+        if is_chain_dot(s, i) {
+            let frame = stack.last_mut().unwrap();
+            let multiline = *frame.multiline.get_or_insert_with(|| frame.last_token_line.is_some_and(|l| line > l));
+            if multiline {
+                points.push(i);
+            }
+            frame.last_token_line = Some(line);
+            i += 1;
+            continue;
+        }
+        let frame = stack.last_mut().unwrap();
+        if c == ':' && s.get(i + 1).copied() == Some(':') {
+            frame.last_token_line = Some(line);
+            i += 2;
+            continue;
+        }
+        if c == '.'
+            || matches!(c, ',' | ';' | ':' | '=' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' | '!' | '<' | '>')
+        {
+            frame.multiline = None;
+        }
+        frame.last_token_line = Some(line);
+        i += 1;
+    }
+    points
+}
+
+fn add_chain_marks(src: &str) -> String {
+    let s: Vec<char> = src.chars().collect();
+    let points       = find_chain_insert_points(&s);
+    let mut out      = String::with_capacity(src.len() + points.len() * (MARK.len() + 2));
+    let mut prev     = 0;
+    for p in points {
+        out.extend(&s[prev..p]);
+        out.push(' ');
+        out.push_str(MARK);
+        out.push('\n');
+        prev = p;
+    }
+    out.extend(&s[prev..]);
+    out
 }
 
 fn add_marks(src: &str) -> String {
@@ -592,7 +763,7 @@ fn main() {
         exit(1);
     }
     let sigs   = inline_if_signatures(&src);
-    let marked = add_marks(&src);
+    let marked = add_marks(&add_chain_marks(&src));
 
     let mut child = match Command::new(rustfmt_path())
         .args(["+nightly", "--edition", &find_edition()])
@@ -622,4 +793,55 @@ fn main() {
     let formatted = String::from_utf8_lossy(&output.stdout);
     let result    = align_assignments(&join_inline_ifs(&strip_marks(&formatted), &sigs));
     print!("{result}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn marked_chain_lines(src: &str) -> Vec<String> {
+        let s: Vec<char> = src.chars().collect();
+        find_chain_insert_points(&s)
+            .iter()
+            .map(|&i| s[i..].iter().take_while(|&&c| c != '\n').collect())
+            .collect()
+    }
+
+    #[test]
+    fn marks_every_suffix_when_first_suffix_starts_on_next_line() {
+        let src = r#"let port = std::env::var("PORT")
+    .ok()
+    .and_then(|p| p.parse::<u16>().ok())
+    .unwrap_or(4002);"#;
+
+        assert_eq!(
+            marked_chain_lines(src),
+            [
+                ".ok()".to_string(),
+                ".and_then(|p| p.parse::<u16>().ok())".to_string(),
+                ".unwrap_or(4002);".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn marks_inline_suffixes_after_a_multiline_chain_trigger() {
+        let src = "let value = input\n    .parse::<Option<Result<u16, E>>>().ok();";
+
+        assert_eq!(marked_chain_lines(src), [".parse::<Option<Result<u16, E>>>().ok();", ".ok();"]);
+    }
+
+    #[test]
+    fn leaves_chain_alone_when_first_suffix_is_inline() {
+        let src = "let value = input.parse()\n    .ok();";
+
+        assert!(marked_chain_lines(src).is_empty());
+    }
+
+    #[test]
+    fn handles_independent_chains_at_the_same_depth() {
+        let src = "let first = input.parse();\nlet second = other\n    .parse().ok();";
+
+        assert_eq!(marked_chain_lines(src), [".parse().ok();", ".ok();"]);
+    }
 }

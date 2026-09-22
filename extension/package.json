@@ -1,9 +1,9 @@
 {
   "name": "rustfmt-magic",
   "displayName": "Rustfmt Magic",
-  "description": "Rust formatter with user-controlled layout: magic trailing commas, first-argument expansion, single-line ifs, and = alignment on top of rustfmt.",
+  "description": "Rust formatter with user-controlled layout: magic trailing commas, first-argument and method-chain expansion, single-line ifs, and = alignment on top of rustfmt.",
   "publisher": "mariuzm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -32,8 +32,22 @@
           "type": "string",
           "default": "",
           "description": "Absolute path to the rustfmt binary to delegate to. If empty, ~/.cargo/bin/rustfmt is used, then rustfmt on PATH."
+        },
+        "rustfmtMagic.topcoatPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the topcoat CLI. In projects with a Topcoat.toml, `topcoat fmt` formats view! macros after rustfmt-magic. If empty, ~/.cargo/bin/topcoat is used, then topcoat on PATH."
         }
       }
-    }
+    },
+    "grammars": [
+      {
+        "scopeName": "topcoat.view.injection",
+        "path": "./syntaxes/topcoat-view.tmLanguage.json",
+        "injectTo": [
+          "source.rust"
+        ]
+      }
+    ]
   }
 }
