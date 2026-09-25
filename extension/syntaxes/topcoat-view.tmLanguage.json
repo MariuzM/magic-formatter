@@ -69,7 +69,6 @@
         { "include": "source.rust#comments" },
         { "include": "source.rust#block-comments" },
         { "include": "source.rust#strings" },
-        { "include": "#control-head" },
         { "include": "#attr-block" },
         { "include": "#reactive-expr" },
         { "include": "#expr" },
@@ -95,7 +94,6 @@
       },
       "patterns": [
         { "include": "source.rust#strings" },
-        { "include": "#control-head" },
         { "include": "#attr-block" },
         { "include": "#reactive-expr" },
         { "include": "#expr" },
