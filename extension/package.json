@@ -3,7 +3,7 @@
   "displayName": "Rustfmt Magic",
   "description": "Rust formatter with user-controlled layout: magic trailing commas, first-argument and method-chain expansion, single-line ifs, and = alignment on top of rustfmt.",
   "publisher": "mariuzm",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "repository": {
     "type": "git",

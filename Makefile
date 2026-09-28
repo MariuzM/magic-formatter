@@ -34,7 +34,8 @@ install: package
 	code --install-extension $(VSIX)
 
 release: package
-	gh release create v$(VERSION) $(VSIX) --title "v$(VERSION)" --generate-notes 2>/dev/null || \
+	@test -n "$(NOTES)" || (echo 'NOTES is required: make release NOTES="..."' && exit 1)
+	gh release create v$(VERSION) $(VSIX) --title "v$(VERSION)" --notes "$(NOTES)" 2>/dev/null || \
 	gh release upload v$(VERSION) $(VSIX) --clobber
 
 clean:
