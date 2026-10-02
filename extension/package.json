@@ -1,9 +1,9 @@
 {
   "name": "magic-formatter",
   "displayName": "Magic Formatter",
-  "description": "Formatter, semantic highlighting, and reference finder for Rust and Swift, with user-controlled layout: magic trailing commas, first-argument and method-chain expansion, single-line ifs, and = alignment.",
+  "description": "Formatter, semantic highlighting, and reference finder for Rust, Swift, TOML, and shell scripts, with user-controlled layout: magic trailing commas, first-argument and method-chain expansion, single-line ifs, and = alignment.",
   "publisher": "mariuzm",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -19,7 +19,9 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onLanguage:rust",
-    "onLanguage:swift"
+    "onLanguage:swift",
+    "onLanguage:toml",
+    "onLanguage:shellscript"
   ],
   "scripts": {
     "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --minify",
@@ -77,9 +79,41 @@
           "enum": ["auto", "on", "off"],
           "default": "auto",
           "description": "Find All References for Swift. `auto` turns it off when the Swift extension (sourcekit-lsp) is installed."
+        },
+        "magicFormatter.toml.semanticHighlighting": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "auto",
+          "description": "Semantic highlighting for TOML. `auto` turns it off when Even Better TOML is installed."
+        },
+        "magicFormatter.toml.references": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "auto",
+          "description": "Find All References for TOML keys. `auto` turns it off when Even Better TOML is installed."
+        },
+        "magicFormatter.shellscript.semanticHighlighting": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "auto",
+          "description": "Semantic highlighting for shell scripts. `auto` turns it off when Bash IDE is installed."
+        },
+        "magicFormatter.shellscript.references": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "auto",
+          "description": "Find All References for shell scripts. `auto` turns it off when Bash IDE is installed."
         }
       }
     },
+    "languages": [
+      {
+        "id": "toml",
+        "aliases": ["TOML", "toml"],
+        "extensions": [".toml"],
+        "configuration": "./languages/toml.json"
+      }
+    ],
     "grammars": [
       {
         "scopeName": "topcoat.view.injection",

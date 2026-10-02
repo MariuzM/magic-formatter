@@ -7,8 +7,8 @@ use crossbeam_channel::Sender;
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
     DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentFormattingParams, FileChangeType, InitializeParams, Location, Position, Range, ReferenceParams,
-    SemanticTokensParams, TextEdit, Uri,
+    DocumentFormattingParams, FileChangeType, InitializeParams, Location, Position, Range, ReferenceParams, SemanticTokensParams, TextEdit,
+    Uri,
 };
 use magic_core::highlight::{TOKEN_MODIFIERS, TOKEN_TYPES, encode};
 use magic_core::index::Index;
@@ -63,13 +63,28 @@ fn path_string(p: Option<&Value>) -> Option<PathBuf> {
 
 fn full_range(doc: &Document) -> Range {
     let (line, character) = doc.lines.position(&doc.text, doc.text.len());
-    Range { start: Position { line: 0, character: 0 }, end: Position { line, character } }
+    Range {
+        start: Position {
+            line:      0,
+            character: 0,
+        },
+        end:   Position { line, character },
+    }
 }
 
 fn to_range(text: &str, lines: &LineIndex, (start, end): (usize, usize)) -> Range {
     let (sl, sc) = lines.position(text, start);
     let (el, ec) = lines.position(text, end);
-    Range { start: Position { line: sl, character: sc }, end: Position { line: el, character: ec } }
+    Range {
+        start: Position {
+            line:      sl,
+            character: sc,
+        },
+        end:   Position {
+            line:      el,
+            character: ec,
+        },
+    }
 }
 
 fn parse(lang: &dyn Language, text: &str) -> Option<Tree> {
@@ -158,7 +173,7 @@ impl Server {
     }
 
     fn semantic_tokens(&mut self, id: RequestId, params: SemanticTokensParams) {
-        let key = params.text_document.uri.as_str().to_string();
+        let key  = params.text_document.uri.as_str().to_string();
         let data = self.docs.get(&key).and_then(|doc| {
             let tree  = doc.tree.as_ref()?;
             let spans = doc.lang.highlighter().spans(tree, &doc.text);
@@ -168,7 +183,7 @@ impl Server {
     }
 
     fn formatting(&mut self, id: RequestId, params: DocumentFormattingParams) {
-        let key = params.text_document.uri.as_str().to_string();
+        let key       = params.text_document.uri.as_str().to_string();
         let Some(doc) = self.docs.get(&key) else {
             respond(&self.sender, id, Value::Null);
             return;
@@ -178,9 +193,17 @@ impl Server {
         let range  = full_range(doc);
         let dir    = uri_to_path(&params.text_document.uri).and_then(|p| p.parent().map(PathBuf::from));
         let tools  = self.tools.clone();
-        let indent = if params.options.insert_spaces { " ".repeat(params.options.tab_size as usize) } else { "\t".into() };
+        let indent = if params.options.insert_spaces {
+            " ".repeat(params.options.tab_size as usize)
+        } else {
+            "\t".into()
+        };
         spawn_request(self.sender.clone(), id, move |sender| {
-            let ctx = FormatContext { dir: dir.as_deref(), indent, tools: &tools };
+            let ctx = FormatContext {
+                dir: dir.as_deref(),
+                indent,
+                tools: &tools,
+            };
             match lang.format(&text, &ctx) {
                 Ok(formatted) => {
                     if let Some(w) = &formatted.warning {
@@ -189,7 +212,11 @@ impl Server {
                     if formatted.text == text {
                         json!([])
                     } else {
-                        serde_json::to_value(vec![TextEdit { range, new_text: formatted.text }]).unwrap()
+                        serde_json::to_value(vec![TextEdit {
+                            range,
+                            new_text: formatted.text,
+                        }])
+                        .unwrap()
                     }
                 }
                 Err(e) => {
@@ -201,24 +228,34 @@ impl Server {
     }
 
     fn references(&mut self, id: RequestId, params: ReferenceParams) {
-        let uri = params.text_document_position.text_document.uri;
-        let key = uri.as_str().to_string();
+        let uri       = params.text_document_position.text_document.uri;
+        let key       = uri.as_str().to_string();
         let Some(doc) = self.docs.get(&key) else {
             respond(&self.sender, id, Value::Null);
             return;
         };
-        let lang      = doc.lang;
-        let pos       = params.text_document_position.position;
-        let offset    = doc.lines.offset(&doc.text, pos.line, pos.character);
-        let include   = params.context.include_declaration;
-        let origin    = OpenFile { path: uri_to_path(&uri).unwrap_or_default(), uri, text: doc.text.clone(), tree: doc.tree.clone() };
+        let lang    = doc.lang;
+        let pos     = params.text_document_position.position;
+        let offset  = doc.lines.offset(&doc.text, pos.line, pos.character);
+        let include = params.context.include_declaration;
+        let origin  = OpenFile {
+            path: uri_to_path(&uri).unwrap_or_default(),
+            uri,
+            text: doc.text.clone(),
+            tree: doc.tree.clone(),
+        };
         let open: Vec<OpenFile> = self
             .docs
             .iter()
             .filter(|(k, d)| **k != key && d.lang.id() == lang.id())
             .filter_map(|(k, d)| {
                 let uri: Uri = k.parse().ok()?;
-                Some(OpenFile { path: uri_to_path(&uri)?, uri, text: d.text.clone(), tree: d.tree.clone() })
+                Some(OpenFile {
+                    path: uri_to_path(&uri)?,
+                    uri,
+                    text: d.text.clone(),
+                    tree: d.tree.clone(),
+                })
             })
             .collect();
         let index = self.index.clone();
@@ -230,18 +267,22 @@ impl Server {
     fn handle_notification(&mut self, note: Notification) {
         match note.method.as_str() {
             "textDocument/didOpen" => {
-                let Ok(p) = note.extract::<DidOpenTextDocumentParams>("textDocument/didOpen") else { return };
+                let Ok(p) = note.extract::<DidOpenTextDocumentParams>("textDocument/didOpen") else {
+                    return;
+                };
                 let lang = language_by_id(&p.text_document.language_id)
                     .or_else(|| uri_to_path(&p.text_document.uri).and_then(|path| language_for_path(&path)));
                 let Some(lang) = lang else { return };
-                let mut doc = Document::new(lang, p.text_document.text);
+                let mut doc    = Document::new(lang, p.text_document.text);
                 if self.needs_tree(lang) {
                     doc.reparse(&mut self.parser);
                 }
                 self.docs.insert(p.text_document.uri.as_str().to_string(), doc);
             }
             "textDocument/didChange" => {
-                let Ok(p) = note.extract::<DidChangeTextDocumentParams>("textDocument/didChange") else { return };
+                let Ok(p) = note.extract::<DidChangeTextDocumentParams>("textDocument/didChange") else {
+                    return;
+                };
                 let needs = self.docs.get(p.text_document.uri.as_str()).is_some_and(|d| self.needs_tree(d.lang));
                 if let Some(doc) = self.docs.get_mut(p.text_document.uri.as_str()) {
                     doc.apply(p.content_changes);
@@ -251,18 +292,20 @@ impl Server {
                 }
             }
             "textDocument/didClose" => {
-                let Ok(p) = note.extract::<DidCloseTextDocumentParams>("textDocument/didClose") else { return };
+                let Ok(p) = note.extract::<DidCloseTextDocumentParams>("textDocument/didClose") else {
+                    return;
+                };
                 self.docs.remove(p.text_document.uri.as_str());
             }
             "workspace/didChangeWatchedFiles" => {
-                let Ok(p) = note.extract::<DidChangeWatchedFilesParams>("workspace/didChangeWatchedFiles") else { return };
+                let Ok(p) = note.extract::<DidChangeWatchedFilesParams>("workspace/didChangeWatchedFiles") else {
+                    return;
+                };
                 let changes: Vec<(PathBuf, bool)> = p
                     .changes
                     .into_iter()
                     .filter_map(|c| Some((uri_to_path(&c.uri)?, c.typ == FileChangeType::DELETED)))
-                    .filter(|(path, _)| {
-                        language_for_path(path).is_some_and(|l| self.features.get(l.id()).is_some_and(|f| f.references))
-                    })
+                    .filter(|(path, _)| language_for_path(path).is_some_and(|l| self.features.get(l.id()).is_some_and(|f| f.references)))
                     .collect();
                 if changes.is_empty() {
                     return;
@@ -292,13 +335,20 @@ fn find_references(
     include_declaration: bool,
     index: &RwLock<Index>,
 ) -> Vec<Location> {
-    let Some(tree) = origin.tree.clone().or_else(|| parse(lang, &origin.text)) else { return Vec::new() };
-    let Some(symbol) = symbol_at(lang, &tree, &origin.text, offset) else { return Vec::new() };
+    let Some(tree) = origin.tree.clone().or_else(|| parse(lang, &origin.text)) else {
+        return Vec::new();
+    };
+    let Some(symbol) = symbol_at(lang, &tree, &origin.text, offset) else {
+        return Vec::new();
+    };
 
     let locate = |file: &OpenFile, tree: &Tree, out: &mut Vec<Location>| {
         let lines = LineIndex::new(&file.text);
         for hit in occurrences(lang, tree, &file.text, &symbol, include_declaration) {
-            out.push(Location { uri: file.uri.clone(), range: to_range(&file.text, &lines, hit) });
+            out.push(Location {
+                uri:   file.uri.clone(),
+                range: to_range(&file.text, &lines, hit),
+            });
         }
     };
 
@@ -327,28 +377,43 @@ fn find_references(
         if !text.contains(&symbol.name) {
             continue;
         }
-        let Some(uri) = path_to_uri(&path) else { continue };
+        let Some(uri)  = path_to_uri(&path) else { continue };
         let Some(tree) = parse(lang, &text) else { continue };
-        locate(&OpenFile { path, uri, text, tree: None }, &tree, &mut out);
+        locate(
+            &OpenFile {
+                path,
+                uri,
+                text,
+                tree: None,
+            },
+            &tree,
+            &mut out,
+        );
     }
     out
 }
 
 pub fn run() {
     let (connection, io_threads) = Connection::stdio();
-    let Ok((id, params)) = connection.initialize_start() else { return };
-    let init: InitializeParams = serde_json::from_value(params).unwrap_or_default();
-    let options                = init.initialization_options.unwrap_or(Value::Null);
+    let Ok((id, params))         = connection.initialize_start() else { return };
+    let init: InitializeParams   = serde_json::from_value(params).unwrap_or_default();
+    let options                  = init.initialization_options.unwrap_or(Value::Null);
 
     let mut features = HashMap::new();
     for lang in LANGUAGES {
         let cfg = &options["languages"][lang.id()];
-        features.insert(lang.id(), Features {
-            semantic_tokens: cfg["semanticTokens"].as_bool().unwrap_or(true),
-            references:      cfg["references"].as_bool().unwrap_or(true),
-        });
+        features.insert(
+            lang.id(),
+            Features {
+                semantic_tokens: cfg["semanticTokens"].as_bool().unwrap_or(true),
+                references:      cfg["references"].as_bool().unwrap_or(true),
+            },
+        );
     }
-    let tools = ToolPaths { rustfmt: path_string(options.get("rustfmtPath")), topcoat: path_string(options.get("topcoatPath")) };
+    let tools = ToolPaths {
+        rustfmt: path_string(options.get("rustfmtPath")),
+        topcoat: path_string(options.get("topcoatPath")),
+    };
 
     let capabilities = json!({
         "capabilities": { "textDocumentSync": { "openClose": true, "change": 2 } },
@@ -368,8 +433,7 @@ pub fn run() {
     };
     server.register_capabilities();
 
-    let roots: Vec<PathBuf> =
-        init.workspace_folders.unwrap_or_default().iter().filter_map(|f| uri_to_path(&f.uri)).collect();
+    let roots: Vec<PathBuf> = init.workspace_folders.unwrap_or_default().iter().filter_map(|f| uri_to_path(&f.uri)).collect();
     let extensions: Vec<&'static str> = LANGUAGES
         .iter()
         .filter(|l| server.features.get(l.id()).is_some_and(|f| f.references))

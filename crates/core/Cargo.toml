@@ -1,5 +1,5 @@
 [package]
-name             = "magic-core"
+name              = "magic-core"
 version.workspace = true
 edition.workspace = true
 

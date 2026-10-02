@@ -29,11 +29,11 @@ pub fn index_roots(roots: Vec<PathBuf>, extensions: Vec<&'static str>, index: Ar
         return;
     }
     std::thread::spawn(move || {
-        let started = Instant::now();
+        let started   = Instant::now();
         let mut count = 0;
         for root in &roots {
             for entry in ignore::WalkBuilder::new(root).build().flatten() {
-                let path = entry.path();
+                let path   = entry.path();
                 let wanted = path.extension().and_then(|e| e.to_str()).is_some_and(|e| extensions.contains(&e));
                 if !wanted || !entry.file_type().is_some_and(|t| t.is_file()) {
                     continue;

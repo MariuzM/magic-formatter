@@ -1,9 +1,9 @@
 [package]
-name              = "lang-rust"
+name              = "lang-shell"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 magic-core       = { workspace = true }
 tree-sitter      = { workspace = true }
-tree-sitter-rust = { workspace = true }
+tree-sitter-bash = { workspace = true }

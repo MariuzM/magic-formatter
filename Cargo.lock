@@ -269,7 +269,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "lang-rust"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -277,12 +277,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "lang-shell"
+version = "0.5.0"
+dependencies = [
+ "magic-core",
+ "tree-sitter",
+ "tree-sitter-bash",
+]
+
+[[package]]
 name = "lang-swift"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
  "tree-sitter-swift",
+]
+
+[[package]]
+name = "lang-toml"
+version = "0.5.0"
+dependencies = [
+ "magic-core",
+ "tree-sitter",
+ "tree-sitter-toml-ng",
 ]
 
 [[package]]
@@ -325,7 +343,7 @@ dependencies = [
 
 [[package]]
 name = "magic-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "streaming-iterator",
  "tree-sitter",
@@ -333,12 +351,14 @@ dependencies = [
 
 [[package]]
 name = "magic-formatter"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "crossbeam-channel",
  "ignore",
  "lang-rust",
+ "lang-shell",
  "lang-swift",
+ "lang-toml",
  "lsp-server",
  "lsp-types",
  "magic-core",
@@ -549,6 +569,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-bash"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e5ec769279cc91b561d3df0d8a5deb26b0ad40d183127f409494d6d8fc53062"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "tree-sitter-language"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -569,6 +599,16 @@ name = "tree-sitter-swift"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe36052155b9dd69ca82b3b8f1b4ccfb2d867125ac1a4db1dd7331829242668c"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-toml-ng"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9adc2c898ae49730e857d75be403da3f92bb81d8e37a2f918a08dd10de5ebb1"
 dependencies = [
  "cc",
  "tree-sitter-language",

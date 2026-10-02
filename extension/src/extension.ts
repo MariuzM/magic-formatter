@@ -18,6 +18,8 @@ const BUNDLED: Record<string, string> = {
 const COMPETING_SERVERS: Record<string, string[]> = {
   rust: ['rust-lang.rust-analyzer'],
   swift: ['swiftlang.swift-vscode', 'sswg.swift-lang'],
+  toml: ['tamasfe.even-better-toml'],
+  shellscript: ['mads-hartmann.bash-ide-vscode'],
 }
 
 let client: LanguageClient | undefined
@@ -65,7 +67,7 @@ const start = async (ctx: ExtensionContext) => {
       lastOptions = JSON.stringify(options)
       return options
     },
-    synchronize: { fileEvents: workspace.createFileSystemWatcher('**/*.{rs,swift}') },
+    synchronize: { fileEvents: workspace.createFileSystemWatcher('**/*.{rs,swift,toml,sh,bash,zsh}') },
   }
 
   client = new LanguageClient('magicFormatter', 'Magic Formatter', serverOptions, clientOptions)

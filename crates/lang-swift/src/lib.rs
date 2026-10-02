@@ -10,7 +10,9 @@ pub struct Swift {
     highlighter: OnceLock<Highlighter>,
 }
 
-pub static SWIFT: Swift = Swift { highlighter: OnceLock::new() };
+pub static SWIFT: Swift = Swift {
+    highlighter: OnceLock::new(),
+};
 
 const NON_LOCAL_PARENTS: &[&str] = &[
     "navigation_suffix",
@@ -40,7 +42,7 @@ fn pattern_bindings<'t>(node: Node<'t>, visible: Option<usize>, bare: bool, out:
 }
 
 fn condition_bindings<'t>(node: Node<'t>, out: &mut Vec<(Node<'t>, usize)>) {
-    let mut cursor   = node.walk();
+    let mut cursor       = node.walk();
     let children: Vec<_> = node.children(&mut cursor).collect();
     for (i, child) in children.iter().enumerate() {
         if node.field_name_for_child(i as u32) != Some("bound_identifier") {
@@ -134,7 +136,13 @@ impl Language for Swift {
     }
 
     fn format(&self, src: &str, ctx: &FormatContext) -> Result<Formatted, String> {
-        let opts = format::Options { indent: ctx.indent.clone(), max_width: 100 };
-        Ok(Formatted { text: format::format(src, &opts)?, warning: None })
+        let opts = format::Options {
+            indent:    ctx.indent.clone(),
+            max_width: 100,
+        };
+        Ok(Formatted {
+            text:    format::format(src, &opts)?,
+            warning: None,
+        })
     }
 }

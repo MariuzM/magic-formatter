@@ -22,12 +22,12 @@ pub struct Locals {
 
 impl Locals {
     pub fn collect(lang: &dyn Language, tree: &Tree, src: &str) -> Self {
-        let bytes                          = src.as_bytes();
-        let scope_kinds                    = lang.scope_kinds();
-        let mut locals                     = Self::default();
+        let bytes                           = src.as_bytes();
+        let scope_kinds                     = lang.scope_kinds();
+        let mut locals                      = Self::default();
         let mut scopes: Vec<(usize, usize)> = Vec::new();
-        let mut found                      = Vec::new();
-        let mut cursor                     = tree.walk();
+        let mut found                       = Vec::new();
+        let mut cursor                      = tree.walk();
 
         'walk: loop {
             let node = cursor.node();

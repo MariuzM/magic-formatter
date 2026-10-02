@@ -171,7 +171,7 @@ fn flatten(spans: &[Span]) -> Vec<Span> {
     let mut out                       = Vec::with_capacity(spans.len());
     let mut stack: Vec<(usize, Kind)> = Vec::new();
     let mut pos                       = 0;
-    let emit = |start: usize, end: usize, kind: Kind, out: &mut Vec<Span>| {
+    let emit                          = |start: usize, end: usize, kind: Kind, out: &mut Vec<Span>| {
         if start < end {
             out.push(Span { start, end, kind });
         }
@@ -206,7 +206,7 @@ pub fn encode(spans: &[Span], src: &str, lines: &LineIndex) -> Vec<u32> {
     for span in spans {
         let mut start = span.start;
         while start < span.end {
-            let line = lines.line_of(start);
+            let line     = lines.line_of(start);
             let line_end = if line + 1 < lines.line_count() {
                 lines.line_start(line + 1) - 1
             } else {

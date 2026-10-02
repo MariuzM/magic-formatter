@@ -55,7 +55,10 @@ impl LineIndex {
 
     pub fn point(&self, offset: usize) -> Point {
         let line = self.line_of(offset);
-        Point { row: line, column: offset - self.starts[line] }
+        Point {
+            row:    line,
+            column: offset - self.starts[line],
+        }
     }
 }
 
@@ -72,7 +75,13 @@ pub fn floor_char_boundary(text: &str, mut offset: usize) -> usize {
 
 pub fn point_after(start: Point, inserted: &str) -> Point {
     match inserted.rfind('\n') {
-        Some(i) => Point { row: start.row + inserted.matches('\n').count(), column: inserted.len() - i - 1 },
-        None => Point { row: start.row, column: start.column + inserted.len() },
+        Some(i) => Point {
+            row:    start.row + inserted.matches('\n').count(),
+            column: inserted.len() - i - 1,
+        },
+        None => Point {
+            row:    start.row,
+            column: start.column + inserted.len(),
+        },
     }
 }

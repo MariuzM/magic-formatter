@@ -47,7 +47,7 @@ impl Index {
 
     pub fn files_with(&self, name: &str) -> Vec<PathBuf> {
         self.symbols
-            .get(name)
+            .get(identifiers(name).next().unwrap_or(name))
             .map(|&s| self.postings[s as usize].iter().map(|&f| self.paths[f as usize].clone()).collect())
             .unwrap_or_default()
     }

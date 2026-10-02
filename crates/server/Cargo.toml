@@ -1,5 +1,5 @@
 [package]
-name             = "magic-formatter"
+name              = "magic-formatter"
 version.workspace = true
 edition.workspace = true
 
@@ -11,6 +11,8 @@ path = "src/main.rs"
 magic-core        = { workspace = true }
 lang-rust         = { workspace = true }
 lang-swift        = { workspace = true }
+lang-toml         = { workspace = true }
+lang-shell        = { workspace = true }
 tree-sitter       = { workspace = true }
 lsp-server        = { workspace = true }
 lsp-types         = { workspace = true }

@@ -471,7 +471,7 @@ fn line_records(s: &[char]) -> Vec<LineRec> {
     let mut i                  = 0;
     let mut depth: i32         = 0;
     let mut recs: Vec<LineRec> = Vec::new();
-    let mut rec = LineRec {
+    let mut rec                = LineRec {
         start:       0,
         end:         0,
         start_depth: 0,
@@ -707,7 +707,7 @@ fn align_assignments(txt: &str) -> String {
             && rec.eq.map_or(false, |eq| {
                 let after: String   = s[eq + 1..rec.end].iter().collect();
                 let from_eq: String = s[eq..rec.end].iter().collect();
-                !after.trim().is_empty() && from_eq.contains(';')
+                !after.trim().is_empty() && (from_eq.contains(';') || after.trim_end().ends_with(['{', '(', '[']))
             })
             && !KEYWORDS.contains(&first_word(line).as_str());
         if eligible {

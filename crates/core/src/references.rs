@@ -52,15 +52,14 @@ pub fn occurrences(
 
     'walk: loop {
         let node = cursor.node();
-        if node.child_count() == 0
-            && kinds.contains(&node.kind())
-            && node.utf8_text(bytes).is_ok_and(|t| t == symbol.name)
-        {
-            let local = if lang.resolves_locally(node) { locals.resolve(&symbol.name, node.start_byte()) } else { None };
+        if node.child_count() == 0 && kinds.contains(&node.kind()) && node.utf8_text(bytes).is_ok_and(|t| t == symbol.name) {
+            let local = if lang.resolves_locally(node) {
+                locals.resolve(&symbol.name, node.start_byte())
+            } else {
+                None
+            };
             let hit = match &symbol.target {
-                Target::Local(def) => {
-                    local == Some(def) && (include_declaration || node.start_byte() != def.start)
-                }
+                Target::Local(def) => local == Some(def) && (include_declaration || node.start_byte() != def.start),
                 Target::Global => local.is_none(),
             };
             if hit {

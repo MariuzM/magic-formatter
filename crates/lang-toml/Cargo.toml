@@ -1,0 +1,9 @@
+[package]
+name              = "lang-toml"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+magic-core          = { workspace = true }
+tree-sitter         = { workspace = true }
+tree-sitter-toml-ng = { workspace = true }

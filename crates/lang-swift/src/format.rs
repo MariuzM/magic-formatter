@@ -47,8 +47,13 @@ const BINARY_PARENTS: &[&str] = &[
 
 const ALIGN_PARENTS: &[&str] = &["property_declaration", "assignment", "typealias_declaration"];
 
-const BODY_WRAPPERS: &[&str] =
-    &["function_body", "class_body", "protocol_body", "enum_class_body", "computed_property"];
+const BODY_WRAPPERS: &[&str] = &[
+    "function_body",
+    "class_body",
+    "protocol_body",
+    "enum_class_body",
+    "computed_property",
+];
 
 const BLOCK_OWNERS: &[&str] = &[
     "if_statement",
@@ -133,7 +138,7 @@ fn fill_gaps<'t>(src: &str, toks: Vec<Tok<'t>>) -> Vec<Tok<'t>> {
     let mut out = Vec::with_capacity(toks.len());
     let mut pos = 0;
     for (i, tok) in toks.iter().enumerate() {
-        let node = toks[i].node;
+        let node  = toks[i].node;
         let mut k = pos;
         while k < tok.start {
             let c = src[k..].chars().next().unwrap();
@@ -214,10 +219,10 @@ impl<'a, 't> Formatter<'a, 't> {
         let mut stack = Vec::new();
         for i in 0..n {
             if i > 0 {
-                let gap  = &src[toks[i - 1].end..toks[i].start];
-                let nl   = gap.matches('\n').count();
-                ws[i]    = !gap.is_empty();
-                brk[i]   = match nl {
+                let gap = &src[toks[i - 1].end..toks[i].start];
+                let nl  = gap.matches('\n').count();
+                ws[i]   = !gap.is_empty();
+                brk[i]  = match nl {
                     0 => Break::None,
                     1 => Break::Line,
                     _ => Break::Blank,
@@ -226,7 +231,7 @@ impl<'a, 't> Formatter<'a, 't> {
             if is_open(toks[i].kind) {
                 stack.push(i);
             } else if is_close(toks[i].kind) {
-                let o = stack.pop().ok_or("unbalanced brackets")?;
+                let o   = stack.pop().ok_or("unbalanced brackets")?;
                 pair[o] = i;
                 pair[i] = o;
             }
@@ -382,7 +387,8 @@ impl<'a, 't> Formatter<'a, 't> {
 
     fn is_binary(&self, i: usize) -> bool {
         let t = &self.toks[i];
-        !t.named && !matches!(t.kind, "(" | ")" | "[" | "]" | "{" | "}" | ",")
+        !t.named
+            && !matches!(t.kind, "(" | ")" | "[" | "]" | "{" | "}" | ",")
             && (matches!(t.kind, "=" | "->") || BINARY_PARENTS.contains(&t.parent))
     }
 
@@ -490,7 +496,9 @@ impl<'a, 't> Formatter<'a, 't> {
         if matches!(t.kind, "directive" | "{" | "else" | "catch_keyword" | "statement_label") {
             return true;
         }
-        let Some(p) = (0..i).rev().find(|&j| !self.toks[j].comment) else { return true };
+        let Some(p) = (0..i).rev().find(|&j| !self.toks[j].comment) else {
+            return true;
+        };
         let prev = &self.toks[p];
         if matches!(prev.kind, "{" | "(" | "[" | ";" | "directive") {
             return true;
@@ -527,7 +535,11 @@ impl<'a, 't> Formatter<'a, 't> {
         let mut first = 0;
         for i in 1..=n {
             if i == n || self.brk[i] != Break::None || i > 0 && self.is_line_comment(i - 1) {
-                lines.push(Line { first, last: i - 1, level: 0 });
+                lines.push(Line {
+                    first,
+                    last: i - 1,
+                    level: 0,
+                });
                 first = i;
             }
         }
@@ -556,11 +568,10 @@ impl<'a, 't> Formatter<'a, 't> {
             match code {
                 None => deferred.push(li),
                 Some(t) => {
-                    let only_closers = |p: usize| {
-                        (lines[p].first..=lines[p].last).all(|k| is_close(self.toks[k].kind) || self.toks[k].comment)
-                    };
-                    let follows_chain = self.is_chain_dot(t)
-                        && prev_code.is_some_and(|p: usize| self.is_chain_dot(lines[p].first) || only_closers(p));
+                    let only_closers =
+                        |p: usize| (lines[p].first..=lines[p].last).all(|k| is_close(self.toks[k].kind) || self.toks[k].comment);
+                    let follows_chain =
+                        self.is_chain_dot(t) && prev_code.is_some_and(|p: usize| self.is_chain_dot(lines[p].first) || only_closers(p));
                     let top       = stack.last().copied();
                     let directive = (self.toks[t].kind == "directive").then(|| self.text(t));
                     if directive.is_some_and(|d| d.starts_with("#endif")) {
@@ -589,13 +600,13 @@ impl<'a, 't> Formatter<'a, 't> {
                         pp += 1;
                     }
                     lines[li].level = level;
-                    prev_code = Some(li);
+                    prev_code       = Some(li);
                 }
             }
             for k in lf..=ll {
                 if is_open(self.toks[k].kind) {
                     anchor[k] = self.anchor_line(k, &line_of);
-                    pp_at[k] = pp;
+                    pp_at[k]  = pp;
                     stack.push(k);
                 } else if is_close(self.toks[k].kind) {
                     stack.pop();
@@ -603,7 +614,7 @@ impl<'a, 't> Formatter<'a, 't> {
             }
         }
         for li in deferred.into_iter().rev() {
-            let next = (li + 1..lines.len()).find(|&l| (lines[l].first..=lines[l].last).any(|k| !self.toks[k].comment));
+            let next        = (li + 1..lines.len()).find(|&l| (lines[l].first..=lines[l].last).any(|k| !self.toks[k].comment));
             lines[li].level = match next {
                 Some(l) if is_close(self.toks[lines[l].first].kind) => lines[l].level + 1,
                 Some(l) => lines[l].level,
@@ -614,7 +625,11 @@ impl<'a, 't> Formatter<'a, 't> {
     }
 
     fn indent_width(&self, level: usize) -> usize {
-        let unit = if self.opts.indent == "\t" { 4 } else { self.opts.indent.chars().count() };
+        let unit = if self.opts.indent == "\t" {
+            4
+        } else {
+            self.opts.indent.chars().count()
+        };
         unit * level
     }
 
@@ -637,8 +652,8 @@ impl<'a, 't> Formatter<'a, 't> {
             if blocked {
                 continue;
             }
-            let li    = self.lines.iter().position(|l| l.first <= open && open <= l.last).unwrap();
-            let first = self.lines[li].first;
+            let li       = self.lines.iter().position(|l| l.first <= open && open <= l.last).unwrap();
+            let first    = self.lines[li].first;
             let mut last = close;
             while last + 1 < self.toks.len() && self.brk[last + 1] == Break::None {
                 last += 1;
@@ -680,9 +695,8 @@ impl<'a, 't> Formatter<'a, 't> {
                 lj += 1;
             }
             if lj > li {
-                let widths: Vec<usize> =
-                    (li..=lj).map(|l| self.width(self.lines[l].first, eqs[l].unwrap() - 1)).collect();
-                let target = *widths.iter().max().unwrap();
+                let widths: Vec<usize> = (li..=lj).map(|l| self.width(self.lines[l].first, eqs[l].unwrap() - 1)).collect();
+                let target             = *widths.iter().max().unwrap();
                 for (l, w) in (li..=lj).zip(widths) {
                     self.padding[eqs[l].unwrap()] = target - w;
                 }
@@ -692,14 +706,13 @@ impl<'a, 't> Formatter<'a, 't> {
     }
 
     fn reindent(&self, i: usize, new_prefix: &str) -> String {
-        let text       = self.text(i);
-        let line_start = self.src[..self.toks[i].start].rfind('\n').map_or(0, |p| p + 1);
-        let old_prefix: String =
-            self.src[line_start..].chars().take_while(|c| *c == ' ' || *c == '\t').collect();
-        let mut parts = text.split('\n');
-        let head      = parts.next().unwrap_or_default();
-        let rest: Vec<&str> = parts.collect();
-        let shiftable = rest.iter().all(|l| l.trim().is_empty() || l.starts_with(old_prefix.as_str()));
+        let text               = self.text(i);
+        let line_start         = self.src[..self.toks[i].start].rfind('\n').map_or(0, |p| p + 1);
+        let old_prefix: String = self.src[line_start..].chars().take_while(|c| *c == ' ' || *c == '\t').collect();
+        let mut parts          = text.split('\n');
+        let head               = parts.next().unwrap_or_default();
+        let rest: Vec<&str>    = parts.collect();
+        let shiftable          = rest.iter().all(|l| l.trim().is_empty() || l.starts_with(old_prefix.as_str()));
         if !shiftable || old_prefix == new_prefix {
             return text.to_string();
         }

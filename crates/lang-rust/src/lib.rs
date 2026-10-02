@@ -10,7 +10,9 @@ pub struct Rust {
     highlighter: OnceLock<Highlighter>,
 }
 
-pub static RUST: Rust = Rust { highlighter: OnceLock::new() };
+pub static RUST: Rust = Rust {
+    highlighter: OnceLock::new(),
+};
 
 const NON_LOCAL_PARENTS: &[&str] = &[
     "scoped_identifier",
@@ -69,8 +71,7 @@ impl Language for Rust {
     }
 
     fn highlighter(&self) -> &Highlighter {
-        self.highlighter
-            .get_or_init(|| Highlighter::new(&self.grammar(), tree_sitter_rust::HIGHLIGHTS_QUERY, Precedence::FirstWins, &[]))
+        self.highlighter.get_or_init(|| Highlighter::new(&self.grammar(), tree_sitter_rust::HIGHLIGHTS_QUERY, Precedence::FirstWins, &[]))
     }
 
     fn identifier_kinds(&self) -> &'static [&'static str] {
@@ -78,7 +79,15 @@ impl Language for Rust {
     }
 
     fn scope_kinds(&self) -> &'static [&'static str] {
-        &["block", "function_item", "closure_expression", "match_arm", "for_expression", "if_expression", "while_expression"]
+        &[
+            "block",
+            "function_item",
+            "closure_expression",
+            "match_arm",
+            "for_expression",
+            "if_expression",
+            "while_expression",
+        ]
     }
 
     fn collect_definitions<'t>(&self, node: Node<'t>, src: &[u8], out: &mut Vec<(Node<'t>, usize)>) {
@@ -110,11 +119,14 @@ impl Language for Rust {
     }
 
     fn format(&self, src: &str, ctx: &FormatContext) -> Result<Formatted, String> {
-        let dir = ctx.dir.map(|d| d.to_path_buf()).or_else(|| std::env::current_dir().ok()).unwrap_or_default();
+        let dir  = ctx.dir.map(|d| d.to_path_buf()).or_else(|| std::env::current_dir().ok()).unwrap_or_default();
         let text = format::format(src, &dir, ctx.tools.rustfmt.as_deref())?;
         match format::topcoat(&text, &dir, ctx.tools.topcoat.as_deref()) {
             Some(Ok(t)) => Ok(Formatted { text: t, warning: None }),
-            Some(Err(e)) => Ok(Formatted { text, warning: Some(format!("topcoat fmt: {e}")) }),
+            Some(Err(e)) => Ok(Formatted {
+                text,
+                warning: Some(format!("topcoat fmt: {e}")),
+            }),
             None => Ok(Formatted { text, warning: None }),
         }
     }

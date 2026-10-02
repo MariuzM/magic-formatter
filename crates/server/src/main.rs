@@ -8,7 +8,7 @@ use std::process::exit;
 
 use magic_core::{FormatContext, Language, ToolPaths};
 
-pub static LANGUAGES: [&'static dyn Language; 2] = [&lang_rust::RUST, &lang_swift::SWIFT];
+pub static LANGUAGES: [&'static dyn Language; 4] = [&lang_rust::RUST, &lang_swift::SWIFT, &lang_toml::TOML, &lang_shell::SHELL];
 
 pub fn language_by_id(id: &str) -> Option<&'static dyn Language> {
     LANGUAGES.iter().copied().find(|l| l.id() == id)
@@ -19,10 +19,20 @@ pub fn language_for_path(path: &Path) -> Option<&'static dyn Language> {
     LANGUAGES.iter().copied().find(|l| l.extensions().contains(&ext))
 }
 
-fn format_stdin(id: &str) {
+fn format_stdin(id: &str, indent: &str) {
     let Some(lang) = language_by_id(id) else {
         eprintln!("magic-formatter: unknown language `{id}`");
         exit(2);
+    };
+    let indent = match indent {
+        "tab" => "\t".to_string(),
+        n => match n.parse::<usize>() {
+            Ok(n) => " ".repeat(n),
+            Err(_) => {
+                eprintln!("magic-formatter: invalid indent `{n}`");
+                exit(2);
+            }
+        },
     };
     let mut src = String::new();
     if io::stdin().read_to_string(&mut src).is_err() {
@@ -30,7 +40,11 @@ fn format_stdin(id: &str) {
     }
     let dir   = std::env::current_dir().ok();
     let tools = ToolPaths::default();
-    let ctx   = FormatContext { dir: dir.as_deref(), indent: "    ".into(), tools: &tools };
+    let ctx   = FormatContext {
+        dir: dir.as_deref(),
+        indent,
+        tools: &tools,
+    };
     match lang.format(&src, &ctx) {
         Ok(f) => {
             if let Some(w) = f.warning {
@@ -50,10 +64,11 @@ fn main() {
     match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
         ["--lsp", ..] => server::run(),
         ["--version"] => println!("{}", env!("CARGO_PKG_VERSION")),
-        [] => format_stdin("rust"),
-        ["--lang", id] => format_stdin(id),
+        [] => format_stdin("rust", "4"),
+        ["--lang", id] => format_stdin(id, "4"),
+        ["--lang", id, "--indent", indent] => format_stdin(id, indent),
         _ => {
-            eprintln!("usage: magic-formatter [--lsp | --lang <rust|swift> | --version]");
+            eprintln!("usage: magic-formatter [--lsp | --lang <rust|swift|toml|shellscript> [--indent <n|tab>] | --version]");
             exit(2);
         }
     }
