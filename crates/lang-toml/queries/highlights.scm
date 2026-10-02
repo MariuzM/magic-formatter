@@ -19,7 +19,7 @@
     (bare_key)
     (quoted_key)
     (dotted_key)
-  ] @property)
+  ] @property.declaration)
 
 (string) @string
 

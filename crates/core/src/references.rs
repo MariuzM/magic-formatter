@@ -1,6 +1,6 @@
 use tree_sitter::{Node, Tree};
 
-use crate::language::Language;
+use crate::language::Analysis;
 use crate::locals::{Def, Locals};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,7 +15,7 @@ pub struct Symbol {
     pub target: Target,
 }
 
-fn identifier_at<'t>(lang: &dyn Language, tree: &'t Tree, offset: usize) -> Option<Node<'t>> {
+pub fn identifier_at<'t>(lang: &dyn Analysis, tree: &'t Tree, offset: usize) -> Option<Node<'t>> {
     let kinds = lang.identifier_kinds();
     let root  = tree.root_node();
     [offset, offset.saturating_sub(1)]
@@ -24,7 +24,7 @@ fn identifier_at<'t>(lang: &dyn Language, tree: &'t Tree, offset: usize) -> Opti
         .find(|n| kinds.contains(&n.kind()))
 }
 
-pub fn symbol_at(lang: &dyn Language, tree: &Tree, src: &str, offset: usize) -> Option<Symbol> {
+pub fn symbol_at(lang: &dyn Analysis, tree: &Tree, src: &str, offset: usize) -> Option<Symbol> {
     let node   = identifier_at(lang, tree, offset)?;
     let name   = node.utf8_text(src.as_bytes()).ok()?.to_string();
     let target = if lang.resolves_locally(node) {
@@ -38,7 +38,7 @@ pub fn symbol_at(lang: &dyn Language, tree: &Tree, src: &str, offset: usize) -> 
 }
 
 pub fn occurrences(
-    lang: &dyn Language,
+    lang: &dyn Analysis,
     tree: &Tree,
     src: &str,
     symbol: &Symbol,

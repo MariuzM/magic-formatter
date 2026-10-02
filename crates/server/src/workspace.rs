@@ -6,6 +6,10 @@ use std::time::Instant;
 
 use lsp_types::Uri;
 use magic_core::index::Index;
+use magic_core::symbols::{IndexedSymbol, indexed};
+use tree_sitter::Parser;
+
+use crate::language_for_path;
 
 const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
 
@@ -24,6 +28,17 @@ pub fn read_source(path: &Path) -> Option<String> {
     Some(String::from_utf8_lossy(&fs::read(path).ok()?).into_owned())
 }
 
+pub fn outline(path: &Path, text: &str) -> Vec<IndexedSymbol> {
+    let Some(analysis) = language_for_path(path).and_then(|l| l.analysis()).filter(|a| a.language_server()) else {
+        return Vec::new();
+    };
+    let mut parser = Parser::new();
+    if parser.set_language(&analysis.grammar()).is_err() {
+        return Vec::new();
+    }
+    parser.parse(text, None).map(|tree| indexed(analysis, &tree, text)).unwrap_or_default()
+}
+
 pub fn index_roots(roots: Vec<PathBuf>, extensions: Vec<&'static str>, index: Arc<RwLock<Index>>) {
     if roots.is_empty() || extensions.is_empty() {
         return;
@@ -39,7 +54,8 @@ pub fn index_roots(roots: Vec<PathBuf>, extensions: Vec<&'static str>, index: Ar
                     continue;
                 }
                 if let Some(text) = read_source(path) {
-                    index.write().unwrap().update(path, &text);
+                    let outline = outline(path, &text);
+                    index.write().unwrap().update(path, &text, outline);
                     count += 1;
                 }
             }

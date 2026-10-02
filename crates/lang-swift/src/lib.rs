@@ -1,10 +1,15 @@
+mod features;
 pub mod format;
 
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use magic_core::highlight::{Highlighter, Precedence};
-use magic_core::{FormatContext, Formatted, Language};
-use tree_sitter::Node;
+use magic_core::completion::word_start;
+use magic_core::describe::{Call, Description};
+use magic_core::highlight::{Highlighter, Precedence, Span};
+use magic_core::symbols::{SymbolInfo, SymbolKind};
+use magic_core::{Analysis, FormatContext, Formatted, Language};
+use tree_sitter::{Node, Tree};
 
 pub struct Swift {
     highlighter: OnceLock<Highlighter>,
@@ -56,15 +61,7 @@ fn condition_bindings<'t>(node: Node<'t>, out: &mut Vec<(Node<'t>, usize)>) {
     }
 }
 
-impl Language for Swift {
-    fn id(&self) -> &'static str {
-        "swift"
-    }
-
-    fn extensions(&self) -> &'static [&'static str] {
-        &["swift"]
-    }
-
+impl Analysis for Swift {
     fn grammar(&self) -> tree_sitter::Language {
         tree_sitter_swift::LANGUAGE.into()
     }
@@ -73,7 +70,7 @@ impl Language for Swift {
         self.highlighter.get_or_init(|| {
             Highlighter::new(
                 &self.grammar(),
-                tree_sitter_swift::HIGHLIGHTS_QUERY,
+                &format!("{}\n{}", tree_sitter_swift::HIGHLIGHTS_QUERY, include_str!("../queries/highlights.scm")),
                 Precedence::LastWins,
                 &[("constructor", "keyword")],
             )
@@ -133,6 +130,91 @@ impl Language for Swift {
             return false;
         }
         parent.child_by_field_name("external_name") != Some(node)
+    }
+
+    fn definition_kinds(&self, _node: Node) -> &'static [(&'static str, &'static str)] {
+        &[
+            ("function_declaration", "name"),
+            ("protocol_function_declaration", "name"),
+            ("class_declaration", "name"),
+            ("protocol_declaration", "name"),
+            ("typealias_declaration", "name"),
+            ("associatedtype_declaration", "name"),
+            ("property_declaration", "name"),
+            ("protocol_property_declaration", "name"),
+            ("enum_entry", "name"),
+        ]
+    }
+
+    fn implementation_kinds(&self) -> &'static [(&'static str, &'static str)] {
+        &[("class_declaration", "name"), ("function_declaration", "name")]
+    }
+
+    fn language_server(&self) -> bool {
+        true
+    }
+
+    fn fence(&self) -> &'static str {
+        "swift"
+    }
+
+    fn symbol(&self, node: Node, src: &str) -> Option<SymbolInfo> {
+        features::symbol(node, src)
+    }
+
+    fn describe(&self, node: Node, src: &str) -> Option<Description> {
+        features::describe(node, src)
+    }
+
+    fn call_at<'t>(&self, node: Node<'t>, offset: usize) -> Option<Call<'t>> {
+        features::call_at(node, offset)
+    }
+
+    fn comment_kinds(&self) -> &'static [&'static str] {
+        &["comment", "multiline_comment"]
+    }
+
+    fn import_kinds(&self) -> &'static [&'static str] {
+        &["import_declaration"]
+    }
+
+    fn builtins(&self) -> &'static [&'static str] {
+        features::BUILTINS
+    }
+
+    fn refine(&self, tree: &Tree, src: &str, spans: &mut [Span]) {
+        features::refine(tree, src, spans);
+    }
+
+    fn member_completions(
+        &self,
+        tree: &Tree,
+        src: &str,
+        offset: usize,
+        _file: &Path,
+        _roots: &[PathBuf],
+    ) -> Option<Vec<(String, SymbolKind)>> {
+        let dot      = word_start(src, offset).checked_sub(1).filter(|&d| src.as_bytes()[d] == b'.')?;
+        let receiver = src[..dot].strip_suffix("self")?;
+        if receiver.ends_with(|c: char| c.is_alphanumeric() || c == '_') {
+            return None;
+        }
+        let node = tree.root_node().descendant_for_byte_range(dot, dot)?;
+        Some(features::self_members(node, src))
+    }
+}
+
+impl Language for Swift {
+    fn id(&self) -> &'static str {
+        "swift"
+    }
+
+    fn extensions(&self) -> &'static [&'static str] {
+        &["swift"]
+    }
+
+    fn analysis(&self) -> Option<&dyn Analysis> {
+        Some(self)
     }
 
     fn format(&self, src: &str, ctx: &FormatContext) -> Result<Formatted, String> {

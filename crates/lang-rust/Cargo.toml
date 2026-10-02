@@ -4,6 +4,4 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-magic-core       = { workspace = true }
-tree-sitter      = { workspace = true }
-tree-sitter-rust = { workspace = true }
+magic-core = { workspace = true }

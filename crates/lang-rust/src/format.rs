@@ -398,10 +398,26 @@ fn add_chain_marks(src: &str) -> String {
     let mut out      = String::with_capacity(src.len() + points.len() * (MARK.len() + 2));
     let mut prev     = 0;
     for p in points {
+        let mut j = p;
+        while j > prev && matches!(s[j - 1], ' ' | '\t') {
+            j -= 1;
+        }
+        if j > prev && s[j - 1] == '\n' {
+            let end = if j > prev + 1 && s[j - 2] == '\r' { j - 2 } else { j - 1 };
+            out.extend(&s[prev..end]);
+            out.push(' ');
+            out.push_str(MARK);
+            prev = end;
+            continue;
+        }
+        let line_start     = s[..p].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
+        let indent: String = s[line_start..].iter().take_while(|c| matches!(c, ' ' | '\t')).collect();
         out.extend(&s[prev..p]);
         out.push(' ');
         out.push_str(MARK);
         out.push('\n');
+        out.push_str(&indent);
+        out.push_str("    ");
         prev = p;
     }
     out.extend(&s[prev..]);

@@ -98,11 +98,82 @@ fn strip_ws(s: &str) -> impl Iterator<Item = char> + '_ {
     s.chars().filter(|c| !c.is_whitespace())
 }
 
+fn mask_expansion_flags(bytes: &mut [u8]) {
+    let mut i = 0;
+    while i + 3 < bytes.len() {
+        if !bytes[i..].starts_with(b"${(") {
+            i += 1;
+            continue;
+        }
+        let Some(len) = bytes[i + 3..].iter().take(40).position(|&b| b == b')' || b == b'\n') else {
+            i += 1;
+            continue;
+        };
+        let close = i + 3 + len;
+        if bytes[close] != b')' || len == 0 {
+            i += 1;
+            continue;
+        }
+        let next = bytes.get(close + 1).copied().unwrap_or(b' ');
+        if next.is_ascii_alphanumeric() || next == b'_' {
+            bytes[i..close - 1].fill(b' ');
+            bytes[close - 1] = b'$';
+            bytes[close]     = b'{';
+        } else {
+            bytes[i..=close].fill(b' ');
+            let mut depth = 1;
+            let mut j     = close + 1;
+            while j < bytes.len() {
+                match bytes[j] {
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            bytes[j] = b' ';
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+        }
+        i = close + 1;
+    }
+}
+
+pub fn mask_zsh(src: &str) -> String {
+    let mut bytes = src.as_bytes().to_vec();
+    mask_expansion_flags(&mut bytes);
+    mask_glob_qualifiers(&mut bytes);
+    String::from_utf8(bytes).unwrap_or_else(|_| src.to_string())
+}
+
+fn mask_glob_qualifiers(bytes: &mut [u8]) {
+    let mut i = 1;
+    while i < bytes.len() {
+        let attached = !bytes[i - 1].is_ascii_whitespace() && !b"$=()|&;<>!`".contains(&bytes[i - 1]);
+        if bytes[i] == b'(' && attached {
+            let body = bytes[i + 1..].iter().take_while(|&&b| b.is_ascii_alphanumeric() || b"[],.:^-/@+".contains(&b)).count();
+            let end  = i + 1 + body;
+            let next = bytes.get(end + 1).copied().unwrap_or(b' ');
+            if body > 0 && bytes.get(end) == Some(&b')') && !(next.is_ascii_alphanumeric() || next == b'_') {
+                bytes[i]   = b'_';
+                bytes[end] = b'_';
+                i          = end;
+            }
+        }
+        i += 1;
+    }
+}
+
 pub fn format(src: &str, opts: &Options) -> Result<String, String> {
-    let tree       = parse(src)?;
+    let tree       = parse(&mask_zsh(src))?;
     let root       = tree.root_node();
     let mut broken = Vec::new();
+
     errors(root, &mut broken);
+
     let regions: Vec<(usize, usize)> = broken
         .iter()
         .map(|&e| {
@@ -113,6 +184,7 @@ pub fn format(src: &str, opts: &Options) -> Result<String, String> {
             (n.start_position().row, n.end_position().row)
         })
         .collect();
+
     let unparsed = |row: usize| regions.iter().any(|&(a, b)| a <= row && row <= b);
     let spans    = verbatim_spans(&tree, src);
     let inside   = |s: usize| spans.iter().any(|&(a, b)| a < s && s < b);
@@ -124,35 +196,44 @@ pub fn format(src: &str, opts: &Options) -> Result<String, String> {
     let mut kinds  = vec![Kind::Blank; raw.len()];
     let mut levels = vec![0; raw.len()];
     let mut closer = vec![false; raw.len()];
+
     for (row, line) in raw.iter().enumerate() {
         let start   = starts[row];
         let content = line.trim_start_matches([' ', '\t']);
         let prev    = row.checked_sub(1).map(|r| raw[r].trim_end_matches('\r'));
-        let glued =
-            prev.is_some_and(|p| p.ends_with('\\') && !p[..p.len() - 1].ends_with(char::is_whitespace)) && content.len() == line.len();
+
+        let glued = prev
+            .is_some_and(|p| p.ends_with('\\') && !p[..p.len() - 1].ends_with(char::is_whitespace))
+            && content.len() == line.len();
+
         if row > 0 && (inside(start) || glued) {
             kinds[row]  = Kind::Verbatim;
             levels[row] = levels[row - 1];
             continue;
         }
+
         if content.trim().is_empty() {
             continue;
         }
+
         if unparsed(row) {
             kinds[row]  = Kind::Verbatim;
             levels[row] = row.checked_sub(1).map_or(0, |r| levels[r]);
             continue;
         }
+
         let p     = start + (line.len() - content.len());
         let first = root.descendant_for_byte_range(p, p + 1).unwrap_or(root);
         if first.kind() == "comment" {
             kinds[row] = Kind::Comment;
             continue;
         }
+
         kinds[row]  = Kind::Code;
         closer[row] = CLOSERS.contains(&first.kind());
         levels[row] = level_of(first, row, &levels);
     }
+
     for row in (0..raw.len()).rev() {
         if kinds[row] != Kind::Comment {
             continue;
@@ -167,6 +248,7 @@ pub fn format(src: &str, opts: &Options) -> Result<String, String> {
 
     let mut out: Vec<String> = Vec::with_capacity(raw.len());
     let mut pending          = false;
+
     for (row, line) in raw.iter().enumerate() {
         match kinds[row] {
             Kind::Blank => pending = !out.is_empty(),
@@ -191,17 +273,21 @@ pub fn format(src: &str, opts: &Options) -> Result<String, String> {
             }
         }
     }
+
     if out.is_empty() {
         return Ok(String::new());
     }
+
     let mut result = out.join("\n");
     result.push('\n');
 
     if !strip_ws(src).eq(strip_ws(&result)) {
         return Err("formatter safety check failed: output changed non-whitespace content".into());
     }
-    if error_count(&parse(&result)?) > broken.len() {
+
+    if error_count(&parse(&mask_zsh(&result))?) > broken.len() {
         return Err("formatter safety check failed: output introduced a syntax error".into());
     }
+
     Ok(result)
 }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use tree_sitter::Tree;
 
-use crate::language::Language;
+use crate::language::Analysis;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Def {
@@ -21,7 +21,7 @@ pub struct Locals {
 }
 
 impl Locals {
-    pub fn collect(lang: &dyn Language, tree: &Tree, src: &str) -> Self {
+    pub fn collect(lang: &dyn Analysis, tree: &Tree, src: &str) -> Self {
         let bytes                           = src.as_bytes();
         let scope_kinds                     = lang.scope_kinds();
         let mut locals                      = Self::default();
@@ -81,5 +81,9 @@ impl Locals {
                     .then(b.scope_end.cmp(&a.scope_end))
                     .then(a.start.cmp(&b.start))
             })
+    }
+
+    pub fn visible(&self, offset: usize) -> impl Iterator<Item = &Def> {
+        self.defs.iter().filter(move |d| d.scope_start <= offset && offset <= d.scope_end && d.visible <= offset)
     }
 }

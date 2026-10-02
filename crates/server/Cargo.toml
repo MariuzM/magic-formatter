@@ -13,6 +13,7 @@ lang-rust         = { workspace = true }
 lang-swift        = { workspace = true }
 lang-toml         = { workspace = true }
 lang-shell        = { workspace = true }
+lang-python       = { workspace = true }
 tree-sitter       = { workspace = true }
 lsp-server        = { workspace = true }
 lsp-types         = { workspace = true }

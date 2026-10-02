@@ -1,6 +1,8 @@
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Query, QueryCursor, Tree};
 
+use crate::language::Analysis;
+use crate::locals::Locals;
 use crate::text::{LineIndex, utf16_len};
 
 pub const TOKEN_TYPES: &[&str] = &[
@@ -27,9 +29,10 @@ pub const TOKEN_TYPES: &[&str] = &[
     "operator",
     "decorator",
     "label",
+    "boolean",
 ];
 
-pub const TOKEN_MODIFIERS: &[&str] = &["readonly", "defaultLibrary", "documentation"];
+pub const TOKEN_MODIFIERS: &[&str] = &["readonly", "defaultLibrary", "documentation", "declaration"];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Precedence {
@@ -87,8 +90,16 @@ fn classify(capture: &str) -> Option<Kind> {
         "function.macro" | "constant.macro" => kind("macro"),
         "function.method" | "function.method.call" => kind("method"),
         "variable.parameter" => kind("parameter"),
+        "type.parameter" => kind("typeParameter"),
         "variable.member" | "variable.field" => kind("property"),
-        "variable.builtin" | "constant.builtin" | "boolean" => kind("keyword"),
+        "property.declaration" => Some(Kind {
+            ty:   ty("property"),
+            mods: modifier("declaration"),
+        }),
+        "boolean" => kind("boolean"),
+        "variant" => kind("enumMember"),
+        "type.enum" => kind("enum"),
+        "variable.builtin" | "constant.builtin" => kind("keyword"),
         "constant" => Some(Kind {
             ty:   ty("variable"),
             mods: modifier("readonly"),
@@ -197,6 +208,46 @@ fn flatten(spans: &[Span]) -> Vec<Span> {
         pos = pos.max(end);
     }
     out
+}
+
+pub fn token_type(name: &str) -> u32 {
+    ty(name)
+}
+
+pub fn refine_locals(lang: &dyn Analysis, tree: &Tree, src: &str, spans: &mut [Span]) {
+    let (variable, parameter, function) = (ty("variable"), ty("parameter"), ty("function"));
+    let locals                          = Locals::collect(lang, tree, src);
+    let kinds                           = lang.identifier_kinds();
+    for i in 0..spans.len() {
+        let span = spans[i];
+        if span.kind.ty != variable && span.kind.ty != function {
+            continue;
+        }
+        let node       = tree.root_node().descendant_for_byte_range(span.start, span.end);
+        let Some(node) = node.filter(|n| kinds.contains(&n.kind()) && n.start_byte() == span.start && n.end_byte() == span.end) else {
+            continue;
+        };
+        if !lang.resolves_locally(node) {
+            continue;
+        }
+        let Some(def) = locals.resolve(&src[span.start..span.end], span.start).filter(|d| d.start != span.start) else {
+            continue;
+        };
+        if let Ok(j) = spans.binary_search_by_key(&def.start, |s| s.start)
+            && matches!(spans[j].kind.ty, t if t == variable || t == parameter)
+        {
+            spans[i].kind = spans[j].kind;
+        }
+    }
+}
+
+pub fn mark_enums(spans: &mut [Span], src: &str, is_enum: impl Fn(&str) -> bool) {
+    let (from, to) = (ty("type"), ty("enum"));
+    for span in spans.iter_mut().filter(|s| s.kind.ty == from) {
+        if is_enum(&src[span.start..span.end]) {
+            span.kind.ty = to;
+        }
+    }
 }
 
 pub fn encode(spans: &[Span], src: &str, lines: &LineIndex) -> Vec<u32> {

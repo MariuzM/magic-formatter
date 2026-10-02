@@ -50,8 +50,11 @@ impl Document {
     }
 
     pub fn reparse(&mut self, parser: &mut Parser) {
-        if parser.set_language(&self.lang.grammar()).is_ok() {
-            self.tree = parser.parse(&self.text, self.tree.as_ref());
+        if let Some(analysis) = self.lang.analysis()
+            && parser.set_language(&analysis.grammar()).is_ok()
+        {
+            let masked = analysis.mask(&self.text);
+            self.tree  = parser.parse(masked.as_deref().unwrap_or(&self.text), self.tree.as_ref());
         }
     }
 }

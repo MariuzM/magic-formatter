@@ -3,7 +3,7 @@ pub mod format;
 use std::sync::OnceLock;
 
 use magic_core::highlight::{Highlighter, Precedence};
-use magic_core::{FormatContext, Formatted, Language};
+use magic_core::{Analysis, FormatContext, Formatted, Language};
 use tree_sitter::Node;
 
 pub struct Toml {
@@ -14,15 +14,7 @@ pub static TOML: Toml = Toml {
     highlighter: OnceLock::new(),
 };
 
-impl Language for Toml {
-    fn id(&self) -> &'static str {
-        "toml"
-    }
-
-    fn extensions(&self) -> &'static [&'static str] {
-        &["toml"]
-    }
-
+impl Analysis for Toml {
     fn grammar(&self) -> tree_sitter::Language {
         tree_sitter_toml_ng::LANGUAGE.into()
     }
@@ -44,6 +36,20 @@ impl Language for Toml {
 
     fn resolves_locally(&self, _node: Node) -> bool {
         false
+    }
+}
+
+impl Language for Toml {
+    fn id(&self) -> &'static str {
+        "toml"
+    }
+
+    fn extensions(&self) -> &'static [&'static str] {
+        &["toml"]
+    }
+
+    fn analysis(&self) -> Option<&dyn Analysis> {
+        Some(self)
     }
 
     fn format(&self, src: &str, ctx: &FormatContext) -> Result<Formatted, String> {

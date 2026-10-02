@@ -8,7 +8,13 @@ use std::process::exit;
 
 use magic_core::{FormatContext, Language, ToolPaths};
 
-pub static LANGUAGES: [&'static dyn Language; 4] = [&lang_rust::RUST, &lang_swift::SWIFT, &lang_toml::TOML, &lang_shell::SHELL];
+pub static LANGUAGES: [&'static dyn Language; 5] = [
+    &lang_rust::RUST,
+    &lang_swift::SWIFT,
+    &lang_toml::TOML,
+    &lang_shell::SHELL,
+    &lang_python::PYTHON,
+];
 
 pub fn language_by_id(id: &str) -> Option<&'static dyn Language> {
     LANGUAGES.iter().copied().find(|l| l.id() == id)
@@ -68,7 +74,7 @@ fn main() {
         ["--lang", id] => format_stdin(id, "4"),
         ["--lang", id, "--indent", indent] => format_stdin(id, indent),
         _ => {
-            eprintln!("usage: magic-formatter [--lsp | --lang <rust|swift|toml|shellscript> [--indent <n|tab>] | --version]");
+            eprintln!("usage: magic-formatter [--lsp | --lang <rust|swift|toml|shellscript|python> [--indent <n|tab>] | --version]");
             exit(2);
         }
     }

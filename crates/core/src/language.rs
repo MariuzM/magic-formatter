@@ -1,8 +1,11 @@
 use std::path::{Path, PathBuf};
 
-use tree_sitter::Node;
+use tree_sitter::{Node, Tree};
 
-use crate::highlight::Highlighter;
+use crate::completion::grammar_keywords;
+use crate::describe::{Call, Description};
+use crate::highlight::{Highlighter, Span};
+use crate::symbols::{SymbolInfo, SymbolKind};
 
 #[derive(Clone, Debug, Default)]
 pub struct ToolPaths {
@@ -26,6 +29,14 @@ pub trait Language: Send + Sync {
 
     fn extensions(&self) -> &'static [&'static str];
 
+    fn analysis(&self) -> Option<&dyn Analysis> {
+        None
+    }
+
+    fn format(&self, src: &str, ctx: &FormatContext) -> Result<Formatted, String>;
+}
+
+pub trait Analysis: Send + Sync {
     fn grammar(&self) -> tree_sitter::Language;
 
     fn highlighter(&self) -> &Highlighter;
@@ -38,5 +49,83 @@ pub trait Language: Send + Sync {
 
     fn resolves_locally(&self, node: Node) -> bool;
 
-    fn format(&self, src: &str, ctx: &FormatContext) -> Result<Formatted, String>;
+    fn definition_kinds(&self, _node: Node) -> &'static [(&'static str, &'static str)] {
+        &[]
+    }
+
+    fn implementation_kinds(&self) -> &'static [(&'static str, &'static str)] {
+        &[]
+    }
+
+    fn import_definitions(
+        &self,
+        _tree: &Tree,
+        _src: &str,
+        _offset: usize,
+        _file: &Path,
+        _roots: &[PathBuf],
+    ) -> Vec<(PathBuf, usize, usize)> {
+        Vec::new()
+    }
+
+    fn language_server(&self) -> bool {
+        false
+    }
+
+    fn fence(&self) -> &'static str {
+        ""
+    }
+
+    fn symbol(&self, _node: Node, _src: &str) -> Option<SymbolInfo> {
+        None
+    }
+
+    fn describe(&self, _node: Node, _src: &str) -> Option<Description> {
+        None
+    }
+
+    fn call_at<'t>(&self, _node: Node<'t>, _offset: usize) -> Option<Call<'t>> {
+        None
+    }
+
+    fn fold(&self, _node: Node) -> Option<(usize, usize)> {
+        None
+    }
+
+    fn comment_kinds(&self) -> &'static [&'static str] {
+        &["comment"]
+    }
+
+    fn import_kinds(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    fn keywords(&self) -> Vec<String> {
+        grammar_keywords(&self.grammar())
+    }
+
+    fn builtins(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    fn syntax_diagnostics(&self) -> bool {
+        false
+    }
+
+    fn refine(&self, _tree: &Tree, _src: &str, _spans: &mut [Span]) {}
+
+    fn mask(&self, _src: &str) -> Option<String> {
+        None
+    }
+
+    fn member_completions(
+        &self,
+        _tree: &Tree,
+        _src: &str,
+        _offset: usize,
+        _file: &Path,
+        _roots: &[PathBuf],
+    ) -> Option<Vec<(String, SymbolKind)>> {
+        None
+    }
 }

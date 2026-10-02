@@ -268,17 +268,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
-name = "lang-rust"
-version = "0.5.0"
+name = "lang-python"
+version = "0.6.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
- "tree-sitter-rust",
+ "tree-sitter-python",
+]
+
+[[package]]
+name = "lang-rust"
+version = "0.6.0"
+dependencies = [
+ "magic-core",
 ]
 
 [[package]]
 name = "lang-shell"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -287,7 +294,7 @@ dependencies = [
 
 [[package]]
 name = "lang-swift"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -296,7 +303,7 @@ dependencies = [
 
 [[package]]
 name = "lang-toml"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -343,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "magic-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "streaming-iterator",
  "tree-sitter",
@@ -351,10 +358,11 @@ dependencies = [
 
 [[package]]
 name = "magic-formatter"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "crossbeam-channel",
  "ignore",
+ "lang-python",
  "lang-rust",
  "lang-shell",
  "lang-swift",
@@ -585,10 +593,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca0d1bf6fdd806e43ae5198f82f527056d359def39e54e67a0f478ac09dac081"
 
 [[package]]
-name = "tree-sitter-rust"
-version = "0.24.2"
+name = "tree-sitter-python"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "439e577dbe07423ec2582ac62c7531120dbfccfa6e5f92406f93dd271a120e45"
+checksum = "6bf85fd39652e740bf60f46f4cda9492c3a9ad75880575bf14960f775cb74a1c"
 dependencies = [
  "cc",
  "tree-sitter-language",

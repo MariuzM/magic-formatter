@@ -15,11 +15,13 @@ const BUNDLED: Record<string, string> = {
   'win32-x64': 'magic-formatter-windows-x64.exe',
 }
 
+const LANGUAGES = ['rust', 'swift', 'toml', 'shellscript', 'python']
+
 const COMPETING_SERVERS: Record<string, string[]> = {
-  rust: ['rust-lang.rust-analyzer'],
   swift: ['swiftlang.swift-vscode', 'sswg.swift-lang'],
   toml: ['tamasfe.even-better-toml'],
   shellscript: ['mads-hartmann.bash-ide-vscode'],
+  python: ['ms-python.vscode-pylance', 'ms-pyright.pyright', 'detachhead.basedpyright'],
 }
 
 let client: LanguageClient | undefined
@@ -41,8 +43,8 @@ const initializationOptions = () => {
     Object.entries(COMPETING_SERVERS).map(([id, competitors]) => [
       id,
       {
-        semanticTokens: isEnabled(cfg.get<Toggle>(`${id}.semanticHighlighting`, 'auto'), competitors),
-        references: isEnabled(cfg.get<Toggle>(`${id}.references`, 'auto'), competitors),
+        semanticTokens: isEnabled(cfg.get<Toggle>(`${id}.semanticHighlighting`, 'on'), competitors),
+        references: isEnabled(cfg.get<Toggle>(`${id}.references`, 'on'), competitors),
       },
     ]),
   )
@@ -61,13 +63,13 @@ const start = async (ctx: ExtensionContext) => {
 
   const serverOptions: ServerOptions = { command: binary, args: ['--lsp'], transport: TransportKind.stdio }
   const clientOptions: LanguageClientOptions = {
-    documentSelector: Object.keys(COMPETING_SERVERS).map((language) => ({ language })),
+    documentSelector: LANGUAGES.map((language) => ({ language })),
     initializationOptions: () => {
       const options = initializationOptions()
       lastOptions = JSON.stringify(options)
       return options
     },
-    synchronize: { fileEvents: workspace.createFileSystemWatcher('**/*.{rs,swift,toml,sh,bash,zsh}') },
+    synchronize: { fileEvents: workspace.createFileSystemWatcher('**/*.{swift,toml,sh,bash,zsh,py,pyi,pyw}') },
   }
 
   client = new LanguageClient('magicFormatter', 'Magic Formatter', serverOptions, clientOptions)
