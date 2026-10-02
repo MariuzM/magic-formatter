@@ -1,0 +1,26 @@
+[workspace]
+resolver = "3"
+members  = ["crates/*"]
+
+[workspace.package]
+version = "0.3.0"
+edition = "2024"
+
+[workspace.dependencies]
+magic-core         = { path = "crates/core" }
+lang-rust          = { path = "crates/lang-rust" }
+lang-swift         = { path = "crates/lang-swift" }
+tree-sitter        = "0.27"
+tree-sitter-rust   = "0.24"
+tree-sitter-swift  = "0.7"
+streaming-iterator = "0.1"
+lsp-server         = "0.10"
+lsp-types          = "0.97"
+serde_json         = "1"
+url                = "2"
+ignore             = "0.4"
+
+[profile.release]
+opt-level = 3
+lto       = true
+strip     = true

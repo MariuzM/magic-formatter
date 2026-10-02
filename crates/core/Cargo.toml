@@ -1,0 +1,8 @@
+[package]
+name             = "magic-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tree-sitter        = { workspace = true }
+streaming-iterator = { workspace = true }

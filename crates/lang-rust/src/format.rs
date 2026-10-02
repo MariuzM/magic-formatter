@@ -1,8 +1,8 @@
 use std::env;
 use std::fs;
-use std::io::{self, Read, Write};
-use std::path::PathBuf;
-use std::process::{Command, Stdio, exit};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 const MARK: &str          = concat!("// __rustfmt_", "magic__");
 const KEYWORDS: [&str; 6] = ["if", "while", "for", "match", "loop", "else"];
@@ -71,8 +71,8 @@ fn starts_at(s: &[char], i: usize, pat: &str) -> bool {
     pat.chars().enumerate().all(|(k, c)| s.get(i + k).copied() == Some(c))
 }
 
-fn find_edition() -> String {
-    let mut dir = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+fn find_edition(start: &Path) -> String {
+    let mut dir = start.to_path_buf();
     for _ in 0..8 {
         let manifest = dir.join("Cargo.toml");
         if let Ok(text) = fs::read_to_string(&manifest) {
@@ -259,18 +259,18 @@ fn is_chain_dot(s: &[char], i: usize) -> bool {
 }
 
 fn find_chain_insert_points(s: &[char]) -> Vec<usize> {
-    let n                       = s.len();
-    let mut i                   = 0;
-    let mut line                = 0;
-    let mut stack               = vec![ChainFrame::default()];
-    let mut points: Vec<usize>  = Vec::new();
+    let n                      = s.len();
+    let mut i                  = 0;
+    let mut line               = 0;
+    let mut stack              = vec![ChainFrame::default()];
+    let mut points: Vec<usize> = Vec::new();
 
     while i < n {
         if let Some((content, hashes)) = raw_string_open(s, i) {
             let end = raw_string_close(s, content, hashes);
             line += s[i..end].iter().filter(|&&c| c == '\n').count();
             stack.last_mut().unwrap().last_token_line = Some(line);
-            i = end;
+            i                                         = end;
             continue;
         }
         let c = s[i];
@@ -290,7 +290,7 @@ fn find_chain_insert_points(s: &[char]) -> Vec<usize> {
             && let Some(end) = char_literal_end(s, i)
         {
             stack.last_mut().unwrap().last_token_line = Some(line);
-            i = end;
+            i                                         = end;
             continue;
         }
         if starts_at(s, i, "//") {
@@ -368,7 +368,7 @@ fn find_chain_insert_points(s: &[char]) -> Vec<usize> {
             continue;
         }
         if is_chain_dot(s, i) {
-            let frame = stack.last_mut().unwrap();
+            let frame     = stack.last_mut().unwrap();
             let multiline = *frame.multiline.get_or_insert_with(|| frame.last_token_line.is_some_and(|l| line > l));
             if multiline {
                 points.push(i);
@@ -383,9 +383,7 @@ fn find_chain_insert_points(s: &[char]) -> Vec<usize> {
             i += 2;
             continue;
         }
-        if c == '.'
-            || matches!(c, ',' | ';' | ':' | '=' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' | '!' | '<' | '>')
-        {
+        if c == '.' || matches!(c, ',' | ';' | ':' | '=' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' | '!' | '<' | '>') {
             frame.multiline = None;
         }
         frame.last_token_line = Some(line);
@@ -563,7 +561,13 @@ fn line_records(s: &[char]) -> Vec<LineRec> {
             depth += 1;
         } else if matches!(c, ')' | ']' | '}') {
             depth -= 1;
-        } else if c == '=' && rec.eq.is_none() && depth == rec.start_depth && !rec.dirty && (i == 0 || !"=!<>+-*/%&|^".contains(s[i - 1])) && s.get(i + 1).map_or(true, |&x| x != '=' && x != '>') {
+        } else if c == '='
+            && rec.eq.is_none()
+            && depth == rec.start_depth
+            && !rec.dirty
+            && (i == 0 || !"=!<>+-*/%&|^".contains(s[i - 1]))
+            && s.get(i + 1).map_or(true, |&x| x != '=' && x != '>')
+        {
             rec.eq = Some(i);
         }
         i += 1;
@@ -742,57 +746,57 @@ fn align_assignments(txt: &str) -> String {
     lines.join("\n")
 }
 
-fn rustfmt_path() -> PathBuf {
+fn cargo_bin(name: &str) -> Option<PathBuf> {
+    let exe = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
+    let p   = PathBuf::from(env::var_os("HOME").or_else(|| env::var_os("USERPROFILE"))?).join(".cargo").join("bin").join(exe);
+    p.exists().then_some(p)
+}
+
+fn rustfmt_path(configured: Option<&Path>) -> PathBuf {
+    if let Some(p) = configured {
+        return p.to_path_buf();
+    }
     if let Ok(p) = env::var("RUSTFMT_MAGIC_RUSTFMT") {
         if !p.is_empty() {
             return PathBuf::from(p);
         }
     }
-    if let Some(home) = env::var_os("HOME") {
-        let p = PathBuf::from(home).join(".cargo").join("bin").join("rustfmt");
-        if p.exists() {
-            return p;
-        }
-    }
-    PathBuf::from("rustfmt")
+    cargo_bin("rustfmt").unwrap_or_else(|| PathBuf::from("rustfmt"))
 }
 
-fn main() {
-    let mut src = String::new();
-    if io::stdin().read_to_string(&mut src).is_err() {
-        exit(1);
-    }
-    let sigs   = inline_if_signatures(&src);
-    let marked = add_marks(&add_chain_marks(&src));
-
-    let mut child = match Command::new(rustfmt_path())
-        .args(["+nightly", "--edition", &find_edition()])
+fn run(binary: &Path, args: &[&str], input: &str, cwd: &Path) -> Result<String, String> {
+    let mut child = Command::new(binary)
+        .args(args)
+        .current_dir(cwd)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("rustfmt-magic: failed to run rustfmt: {e}");
-            exit(1);
-        }
-    };
-    child.stdin.take().unwrap().write_all(marked.as_bytes()).ok();
-    let output = match child.wait_with_output() {
-        Ok(o) => o,
-        Err(e) => {
-            eprintln!("rustfmt-magic: {e}");
-            exit(1);
-        }
-    };
-    io::stderr().write_all(&output.stderr).ok();
+        .map_err(|e| format!("failed to run {}: {e}", binary.display()))?;
+    child.stdin.take().unwrap().write_all(input.as_bytes()).ok();
+    let output = child.wait_with_output().map_err(|e| e.to_string())?;
     if !output.status.success() {
-        exit(output.status.code().unwrap_or(1));
+        return Err(String::from_utf8_lossy(&output.stderr).into_owned());
     }
-    let formatted = String::from_utf8_lossy(&output.stdout);
-    let result    = align_assignments(&join_inline_ifs(&strip_marks(&formatted), &sigs));
-    print!("{result}");
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+pub fn format(src: &str, dir: &Path, rustfmt: Option<&Path>) -> Result<String, String> {
+    let sigs      = inline_if_signatures(src);
+    let marked    = add_marks(&add_chain_marks(src));
+    let edition   = find_edition(dir);
+    let formatted = run(&rustfmt_path(rustfmt), &["+nightly", "--edition", &edition], &marked, dir)?;
+    Ok(align_assignments(&join_inline_ifs(&strip_marks(&formatted), &sigs)))
+}
+
+fn find_up(start: &Path, name: &str) -> Option<PathBuf> {
+    start.ancestors().find(|d| d.join(name).exists()).map(Path::to_path_buf)
+}
+
+pub fn topcoat(src: &str, dir: &Path, topcoat: Option<&Path>) -> Option<Result<String, String>> {
+    let root   = find_up(dir, "Topcoat.toml")?;
+    let binary = topcoat.map(Path::to_path_buf).or_else(|| cargo_bin("topcoat")).unwrap_or_else(|| PathBuf::from("topcoat"));
+    Some(run(&binary, &["fmt", "--stdin"], src, &root))
 }
 
 #[cfg(test)]

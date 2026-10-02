@@ -18,17 +18,17 @@ else
 endif
 
 build:
-	cargo build --release --manifest-path core/Cargo.toml
+	cargo build --release
 
 dev:
-	watchexec -r -c -w core/src -e rs -- make build
+	watchexec -r -c -w crates -e rs -- make bundle
 
 bundle: build
 	mkdir -p extension/bin
-	cp core/target/release/rustfmt-magic extension/bin/$(HOST_BIN)
+	cp target/release/rustfmt-magic extension/bin/$(HOST_BIN)
 
 package: bundle
-	cd extension && npx @vscode/vsce package
+	cd extension && npm ci && npx @vscode/vsce package --no-dependencies
 
 install: package
 	code --install-extension $(VSIX)
@@ -39,7 +39,7 @@ release: package
 	gh release upload v$(VERSION) $(VSIX) --clobber
 
 clean:
-	cargo clean --manifest-path core/Cargo.toml
-	rm -rf extension/bin extension/*.vsix
+	cargo clean
+	rm -rf extension/bin extension/dist extension/*.vsix
 
 .PHONY: build dev bundle package install release clean

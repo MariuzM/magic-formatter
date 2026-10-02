@@ -1,5 +1,6 @@
-core/target/
+target/
 extension/bin/
+extension/dist/
 extension/*.vsix
 extension/node_modules/
 .DS_Store

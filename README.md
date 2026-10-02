@@ -1,6 +1,6 @@
 # Rustfmt Magic
 
-A Rust formatter that runs rustfmt and adds user-controlled layout on top. You decide the shape of your code with small gestures in the source; the formatter respects them on every save.
+A formatter for Rust and Swift with user-controlled layout. You decide the shape of your code with small gestures in the source; the formatter respects them on every save. It also provides semantic highlighting and Find All References for both languages, from a single fast native language server.
 
 ## The rules
 
@@ -51,17 +51,29 @@ Only complete statements participate (the line must end its statement with `;`),
 
 Everything else is plain rustfmt, including all options from your `rustfmt.toml`.
 
+## Swift
+
+Swift is formatted by a built-in formatter, so no Swift toolchain or `swift-format` is needed. The same rules apply: magic trailing comma, first argument position, method chains, single-line `if`, and `=` alignment. On top of that it re-indents code (including `switch`/`case`, `#if` blocks, and SwiftUI modifier chains) and normalizes spacing, while keeping your line breaks. Lines the parser does not understand are left exactly as written.
+
+## Highlighting and references
+
+Semantic highlighting and Find All References work for both languages. References resolve local variables by scope and everything else by name across the workspace. Both features default to `auto`, which turns them off for a language when its full language server is installed (rust-analyzer for Rust, the Swift extension for Swift).
+
 ## Requirements
 
-- `rustfmt` installed via rustup, with the **nightly** toolchain available (`rustup toolchain install nightly`) — needed if your `rustfmt.toml` uses nightly-only options.
+- Rust only: `rustfmt` installed via rustup, with the **nightly** toolchain available (`rustup toolchain install nightly`) — needed if your `rustfmt.toml` uses nightly-only options.
 - rustfmt options are read from the normal `rustfmt.toml` locations (project directory, or `~/Library/Application Support/rustfmt/rustfmt.toml` on macOS).
 
 ## Setup
 
-Set the extension as your Rust formatter in `settings.json`:
+Set the extension as your formatter in `settings.json`:
 
 ```json
 "[rust]": {
+  "editor.defaultFormatter": "mariuzm.rustfmt-magic",
+  "editor.formatOnSave": true
+},
+"[swift]": {
   "editor.defaultFormatter": "mariuzm.rustfmt-magic",
   "editor.formatOnSave": true
 }
@@ -77,6 +89,7 @@ Alternatively, skip the extension and point rust-analyzer straight at the binary
 
 - `rustfmtMagic.binaryPath` — absolute path to a locally built `rustfmt-magic` binary (defaults to the bundled platform binary).
 - `rustfmtMagic.rustfmtPath` — absolute path to the `rustfmt` to delegate to (defaults to `~/.cargo/bin/rustfmt`, then `rustfmt` on PATH).
+- `rustfmtMagic.rust.semanticHighlighting`, `rustfmtMagic.rust.references`, `rustfmtMagic.swift.semanticHighlighting`, `rustfmtMagic.swift.references` — `auto` (default), `on`, or `off`.
 
 ## Why
 

@@ -1,24 +1,40 @@
 {
   "name": "rustfmt-magic",
   "displayName": "Rustfmt Magic",
-  "description": "Rust formatter with user-controlled layout: magic trailing commas, first-argument and method-chain expansion, single-line ifs, and = alignment on top of rustfmt.",
+  "description": "Formatter, semantic highlighting, and reference finder for Rust and Swift, with user-controlled layout: magic trailing commas, first-argument and method-chain expansion, single-line ifs, and = alignment.",
   "publisher": "mariuzm",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/MariuzM/rustfmt-magic.git"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.91.0"
   },
   "categories": [
-    "Formatters"
+    "Formatters",
+    "Programming Languages"
   ],
-  "main": "./extension.js",
+  "main": "./dist/extension.js",
   "activationEvents": [
-    "onLanguage:rust"
+    "onLanguage:rust",
+    "onLanguage:swift"
   ],
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --minify",
+    "typecheck": "tsc --noEmit",
+    "vscode:prepublish": "npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^10.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.91.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
   "contributes": {
     "configuration": {
       "title": "Rustfmt Magic",
@@ -37,6 +53,30 @@
           "type": "string",
           "default": "",
           "description": "Absolute path to the topcoat CLI. In projects with a Topcoat.toml, `topcoat fmt` formats view! macros after rustfmt-magic. If empty, ~/.cargo/bin/topcoat is used, then topcoat on PATH."
+        },
+        "rustfmtMagic.rust.semanticHighlighting": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "auto",
+          "description": "Semantic highlighting for Rust. `auto` turns it off when rust-analyzer is installed."
+        },
+        "rustfmtMagic.rust.references": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "auto",
+          "description": "Find All References for Rust. `auto` turns it off when rust-analyzer is installed."
+        },
+        "rustfmtMagic.swift.semanticHighlighting": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "auto",
+          "description": "Semantic highlighting for Swift. `auto` turns it off when the Swift extension (sourcekit-lsp) is installed."
+        },
+        "rustfmtMagic.swift.references": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "auto",
+          "description": "Find All References for Swift. `auto` turns it off when the Swift extension (sourcekit-lsp) is installed."
         }
       }
     },
