@@ -21,7 +21,7 @@ pub fn language_for_path(path: &Path) -> Option<&'static dyn Language> {
 
 fn format_stdin(id: &str) {
     let Some(lang) = language_by_id(id) else {
-        eprintln!("rustfmt-magic: unknown language `{id}`");
+        eprintln!("magic-formatter: unknown language `{id}`");
         exit(2);
     };
     let mut src = String::new();
@@ -34,7 +34,7 @@ fn format_stdin(id: &str) {
     match lang.format(&src, &ctx) {
         Ok(f) => {
             if let Some(w) = f.warning {
-                eprintln!("rustfmt-magic: {w}");
+                eprintln!("magic-formatter: {w}");
             }
             print!("{}", f.text);
         }
@@ -53,7 +53,7 @@ fn main() {
         [] => format_stdin("rust"),
         ["--lang", id] => format_stdin(id),
         _ => {
-            eprintln!("usage: rustfmt-magic [--lsp | --lang <rust|swift> | --version]");
+            eprintln!("usage: magic-formatter [--lsp | --lang <rust|swift> | --version]");
             exit(2);
         }
     }

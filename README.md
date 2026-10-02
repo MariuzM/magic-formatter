@@ -1,4 +1,4 @@
-# Rustfmt Magic
+# Magic Formatter
 
 A formatter for Rust and Swift with user-controlled layout. You decide the shape of your code with small gestures in the source; the formatter respects them on every save. It also provides semantic highlighting and Find All References for both languages, from a single fast native language server.
 
@@ -70,11 +70,11 @@ Set the extension as your formatter in `settings.json`:
 
 ```json
 "[rust]": {
-  "editor.defaultFormatter": "mariuzm.rustfmt-magic",
+  "editor.defaultFormatter": "mariuzm.magic-formatter",
   "editor.formatOnSave": true
 },
 "[swift]": {
-  "editor.defaultFormatter": "mariuzm.rustfmt-magic",
+  "editor.defaultFormatter": "mariuzm.magic-formatter",
   "editor.formatOnSave": true
 }
 ```
@@ -82,14 +82,14 @@ Set the extension as your formatter in `settings.json`:
 Alternatively, skip the extension and point rust-analyzer straight at the binary:
 
 ```json
-"rust-analyzer.rustfmt.overrideCommand": ["/path/to/rustfmt-magic"]
+"rust-analyzer.rustfmt.overrideCommand": ["/path/to/magic-formatter"]
 ```
 
 ## Settings
 
-- `rustfmtMagic.binaryPath` — absolute path to a locally built `rustfmt-magic` binary (defaults to the bundled platform binary).
-- `rustfmtMagic.rustfmtPath` — absolute path to the `rustfmt` to delegate to (defaults to `~/.cargo/bin/rustfmt`, then `rustfmt` on PATH).
-- `rustfmtMagic.rust.semanticHighlighting`, `rustfmtMagic.rust.references`, `rustfmtMagic.swift.semanticHighlighting`, `rustfmtMagic.swift.references` — `auto` (default), `on`, or `off`.
+- `magicFormatter.binaryPath` — absolute path to a locally built `magic-formatter` binary (defaults to the bundled platform binary).
+- `magicFormatter.rustfmtPath` — absolute path to the `rustfmt` to delegate to (defaults to `~/.cargo/bin/rustfmt`, then `rustfmt` on PATH).
+- `magicFormatter.rust.semanticHighlighting`, `magicFormatter.rust.references`, `magicFormatter.swift.semanticHighlighting`, `magicFormatter.swift.references` — `auto` (default), `on`, or `off`.
 
 ## Why
 

@@ -269,7 +269,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "lang-rust"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "lang-swift"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -325,10 +325,26 @@ dependencies = [
 
 [[package]]
 name = "magic-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "streaming-iterator",
  "tree-sitter",
+]
+
+[[package]]
+name = "magic-formatter"
+version = "0.4.0"
+dependencies = [
+ "crossbeam-channel",
+ "ignore",
+ "lang-rust",
+ "lang-swift",
+ "lsp-server",
+ "lsp-types",
+ "magic-core",
+ "serde_json",
+ "tree-sitter",
+ "url",
 ]
 
 [[package]]
@@ -398,22 +414,6 @@ name = "regex-syntax"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
-
-[[package]]
-name = "rustfmt-magic"
-version = "0.3.0"
-dependencies = [
- "crossbeam-channel",
- "ignore",
- "lang-rust",
- "lang-swift",
- "lsp-server",
- "lsp-types",
- "magic-core",
- "serde_json",
- "tree-sitter",
- "url",
-]
 
 [[package]]
 name = "same-file"

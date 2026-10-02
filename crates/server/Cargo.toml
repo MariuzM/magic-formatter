@@ -1,10 +1,10 @@
 [package]
-name             = "rustfmt-magic"
+name             = "magic-formatter"
 version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "rustfmt-magic"
+name = "magic-formatter"
 path = "src/main.rs"
 
 [dependencies]

@@ -44,6 +44,6 @@ pub fn index_roots(roots: Vec<PathBuf>, extensions: Vec<&'static str>, index: Ar
                 }
             }
         }
-        eprintln!("rustfmt-magic: indexed {count} files in {:.0?}", started.elapsed());
+        eprintln!("magic-formatter: indexed {count} files in {:.0?}", started.elapsed());
     });
 }

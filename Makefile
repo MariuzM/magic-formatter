@@ -1,19 +1,19 @@
 VERSION := $(shell node -p "require('./extension/package.json').version")
-VSIX    := extension/rustfmt-magic-$(VERSION).vsix
+VSIX    := extension/magic-formatter-$(VERSION).vsix
 
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_S),Darwin)
   ifeq ($(UNAME_M),arm64)
-    HOST_BIN := rustfmt-magic-darwin-arm64
+    HOST_BIN := magic-formatter-darwin-arm64
   else
-    HOST_BIN := rustfmt-magic-darwin-x64
+    HOST_BIN := magic-formatter-darwin-x64
   endif
 else
   ifeq ($(UNAME_M),aarch64)
-    HOST_BIN := rustfmt-magic-linux-arm64
+    HOST_BIN := magic-formatter-linux-arm64
   else
-    HOST_BIN := rustfmt-magic-linux-x64
+    HOST_BIN := magic-formatter-linux-x64
   endif
 endif
 
@@ -25,7 +25,7 @@ dev:
 
 bundle: build
 	mkdir -p extension/bin
-	cp target/release/rustfmt-magic extension/bin/$(HOST_BIN)
+	cp target/release/magic-formatter extension/bin/$(HOST_BIN)
 
 package: bundle
 	cd extension && npm ci && npx @vscode/vsce package --no-dependencies

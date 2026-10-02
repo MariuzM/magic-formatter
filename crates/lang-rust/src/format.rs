@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-const MARK: &str          = concat!("// __rustfmt_", "magic__");
+const MARK: &str          = concat!("// __magic_", "formatter__");
 const KEYWORDS: [&str; 6] = ["if", "while", "for", "match", "loop", "else"];
 
 fn char_literal_end(s: &[char], i: usize) -> Option<usize> {
@@ -756,7 +756,7 @@ fn rustfmt_path(configured: Option<&Path>) -> PathBuf {
     if let Some(p) = configured {
         return p.to_path_buf();
     }
-    if let Ok(p) = env::var("RUSTFMT_MAGIC_RUSTFMT") {
+    if let Ok(p) = env::var("MAGIC_FORMATTER_RUSTFMT") {
         if !p.is_empty() {
             return PathBuf::from(p);
         }

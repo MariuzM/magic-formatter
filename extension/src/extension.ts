@@ -8,11 +8,11 @@ type Toggle = 'auto' | 'on' | 'off'
 type Status = { message: string }
 
 const BUNDLED: Record<string, string> = {
-  'darwin-arm64': 'rustfmt-magic-darwin-arm64',
-  'darwin-x64': 'rustfmt-magic-darwin-x64',
-  'linux-x64': 'rustfmt-magic-linux-x64',
-  'linux-arm64': 'rustfmt-magic-linux-arm64',
-  'win32-x64': 'rustfmt-magic-windows-x64.exe',
+  'darwin-arm64': 'magic-formatter-darwin-arm64',
+  'darwin-x64': 'magic-formatter-darwin-x64',
+  'linux-x64': 'magic-formatter-linux-x64',
+  'linux-arm64': 'magic-formatter-linux-arm64',
+  'win32-x64': 'magic-formatter-windows-x64.exe',
 }
 
 const COMPETING_SERVERS: Record<string, string[]> = {
@@ -34,7 +34,7 @@ const isEnabled = (toggle: Toggle, competitors: string[]) =>
   toggle === 'on' || (toggle === 'auto' && !competitors.some((id) => extensions.getExtension(id)))
 
 const initializationOptions = () => {
-  const cfg = workspace.getConfiguration('rustfmtMagic')
+  const cfg = workspace.getConfiguration('magicFormatter')
   const languages = Object.fromEntries(
     Object.entries(COMPETING_SERVERS).map(([id, competitors]) => [
       id,
@@ -48,11 +48,11 @@ const initializationOptions = () => {
 }
 
 const start = async (ctx: ExtensionContext) => {
-  const binary = workspace.getConfiguration('rustfmtMagic').get<string>('binaryPath') || bundledBinaryPath(ctx)
+  const binary = workspace.getConfiguration('magicFormatter').get<string>('binaryPath') || bundledBinaryPath(ctx)
   if (!binary) {
     window.showErrorMessage(
-      `Rustfmt Magic: no bundled binary for ${process.platform}-${process.arch}. ` +
-        'Set "rustfmtMagic.binaryPath" to a locally built binary.',
+      `Magic Formatter: no bundled binary for ${process.platform}-${process.arch}. ` +
+        'Set "magicFormatter.binaryPath" to a locally built binary.',
     )
     return
   }
@@ -68,8 +68,8 @@ const start = async (ctx: ExtensionContext) => {
     synchronize: { fileEvents: workspace.createFileSystemWatcher('**/*.{rs,swift}') },
   }
 
-  client = new LanguageClient('rustfmtMagic', 'Rustfmt Magic', serverOptions, clientOptions)
-  client.onNotification('rustfmtMagic/status', ({ message }: Status) => {
+  client = new LanguageClient('magicFormatter', 'Magic Formatter', serverOptions, clientOptions)
+  client.onNotification('magicFormatter/status', ({ message }: Status) => {
     window.setStatusBarMessage(message, 5000)
   })
   await client.start()
@@ -84,7 +84,7 @@ const restart = async (ctx: ExtensionContext) => {
 export const activate = async (ctx: ExtensionContext) => {
   ctx.subscriptions.push(
     workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('rustfmtMagic')) restart(ctx)
+      if (e.affectsConfiguration('magicFormatter')) restart(ctx)
     }),
     extensions.onDidChange(() => {
       if (JSON.stringify(initializationOptions()) !== lastOptions) restart(ctx)

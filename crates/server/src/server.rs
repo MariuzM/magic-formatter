@@ -39,7 +39,7 @@ struct Server {
 
 fn status(sender: &Sender<Message>, message: &str) {
     let line = message.lines().find(|l| !l.trim().is_empty()).unwrap_or(message);
-    let note = Notification::new("rustfmtMagic/status".into(), json!({ "message": line }));
+    let note = Notification::new("magicFormatter/status".into(), json!({ "message": line }));
     sender.send(note.into()).ok();
 }
 
@@ -51,7 +51,7 @@ fn spawn_request(sender: Sender<Message>, id: RequestId, work: impl FnOnce(&Send
     std::thread::spawn(move || {
         let response = match catch_unwind(AssertUnwindSafe(|| work(&sender))) {
             Ok(result) => Response::new_ok(id, result),
-            Err(_) => Response::new_err(id, ErrorCode::InternalError as i32, "rustfmt-magic: internal error".into()),
+            Err(_) => Response::new_err(id, ErrorCode::InternalError as i32, "magic-formatter: internal error".into()),
         };
         sender.send(response.into()).ok();
     });
@@ -184,7 +184,7 @@ impl Server {
             match lang.format(&text, &ctx) {
                 Ok(formatted) => {
                     if let Some(w) = &formatted.warning {
-                        status(sender, &format!("Rustfmt Magic ({w})"));
+                        status(sender, &format!("Magic Formatter ({w})"));
                     }
                     if formatted.text == text {
                         json!([])
@@ -193,7 +193,7 @@ impl Server {
                     }
                 }
                 Err(e) => {
-                    status(sender, &format!("Rustfmt Magic: {}", e.lines().find(|l| !l.trim().is_empty()).unwrap_or(&e)));
+                    status(sender, &format!("Magic Formatter: {}", e.lines().find(|l| !l.trim().is_empty()).unwrap_or(&e)));
                     json!([])
                 }
             }
@@ -352,7 +352,7 @@ pub fn run() {
 
     let capabilities = json!({
         "capabilities": { "textDocumentSync": { "openClose": true, "change": 2 } },
-        "serverInfo": { "name": "rustfmt-magic", "version": env!("CARGO_PKG_VERSION") },
+        "serverInfo": { "name": "magic-formatter", "version": env!("CARGO_PKG_VERSION") },
     });
     if connection.initialize_finish(id, capabilities).is_err() {
         return;
