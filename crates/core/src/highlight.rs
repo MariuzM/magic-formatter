@@ -250,6 +250,15 @@ pub fn mark_enums(spans: &mut [Span], src: &str, is_enum: impl Fn(&str) -> bool)
     }
 }
 
+pub fn mark_functions(spans: &mut [Span], src: &str, is_function: impl Fn(&str) -> bool) {
+    let (from, to) = (ty("type"), ty("function"));
+    for span in spans.iter_mut().filter(|s| s.kind.ty == from) {
+        if is_function(&src[span.start..span.end]) {
+            span.kind.ty = to;
+        }
+    }
+}
+
 pub fn encode(spans: &[Span], src: &str, lines: &LineIndex) -> Vec<u32> {
     let mut data      = Vec::with_capacity(spans.len() * 5);
     let mut prev_line = 0u32;

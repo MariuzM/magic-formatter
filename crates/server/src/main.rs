@@ -1,5 +1,6 @@
 mod document;
 mod server;
+mod sourcekit;
 mod workspace;
 
 use std::io::{self, Read};
@@ -8,12 +9,14 @@ use std::process::exit;
 
 use magic_core::{FormatContext, Language, ToolPaths};
 
-pub static LANGUAGES: [&'static dyn Language; 5] = [
+pub static LANGUAGES: [&'static dyn Language; 7] = [
     &lang_rust::RUST,
     &lang_swift::SWIFT,
     &lang_toml::TOML,
     &lang_shell::SHELL,
     &lang_python::PYTHON,
+    &lang_kotlin::KOTLIN,
+    &lang_docker::DOCKER,
 ];
 
 pub fn language_by_id(id: &str) -> Option<&'static dyn Language> {
@@ -21,8 +24,12 @@ pub fn language_by_id(id: &str) -> Option<&'static dyn Language> {
 }
 
 pub fn language_for_path(path: &Path) -> Option<&'static dyn Language> {
-    let ext = path.extension()?.to_str()?;
-    LANGUAGES.iter().copied().find(|l| l.extensions().contains(&ext))
+    let name = path.file_name()?.to_str()?;
+    let ext  = path.extension().and_then(|e| e.to_str());
+    LANGUAGES.iter().copied().find(|l| {
+        ext.is_some_and(|e| l.extensions().contains(&e))
+            || l.filenames().iter().any(|f| name.strip_prefix(f).is_some_and(|rest| rest.is_empty() || rest.starts_with('.')))
+    })
 }
 
 fn format_stdin(id: &str, indent: &str) {
@@ -74,7 +81,9 @@ fn main() {
         ["--lang", id] => format_stdin(id, "4"),
         ["--lang", id, "--indent", indent] => format_stdin(id, indent),
         _ => {
-            eprintln!("usage: magic-formatter [--lsp | --lang <rust|swift|toml|shellscript|python> [--indent <n|tab>] | --version]");
+            eprintln!(
+                "usage: magic-formatter [--lsp | --lang <rust|swift|toml|shellscript|python|kotlin|dockerfile> [--indent <n|tab>] | --version]"
+            );
             exit(2);
         }
     }

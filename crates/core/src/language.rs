@@ -29,6 +29,10 @@ pub trait Language: Send + Sync {
 
     fn extensions(&self) -> &'static [&'static str];
 
+    fn filenames(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     fn analysis(&self) -> Option<&dyn Analysis> {
         None
     }
@@ -66,6 +70,18 @@ pub trait Analysis: Send + Sync {
         _roots: &[PathBuf],
     ) -> Vec<(PathBuf, usize, usize)> {
         Vec::new()
+    }
+
+    fn is_definition(&self, _name: Node) -> bool {
+        true
+    }
+
+    fn implementations(&self, _tree: &Tree, _src: &str, _name: &str) -> Option<Vec<(usize, usize)>> {
+        None
+    }
+
+    fn import_fallback(&self, _tree: &Tree, _src: &str, _name: &str) -> Option<(usize, usize)> {
+        None
     }
 
     fn language_server(&self) -> bool {

@@ -15,13 +15,15 @@ const BUNDLED: Record<string, string> = {
   'win32-x64': 'magic-formatter-windows-x64.exe',
 }
 
-const LANGUAGES = ['rust', 'swift', 'toml', 'shellscript', 'python']
+const LANGUAGES = ['rust', 'swift', 'toml', 'shellscript', 'python', 'kotlin', 'dockerfile']
 
 const COMPETING_SERVERS: Record<string, string[]> = {
   swift: ['swiftlang.swift-vscode', 'sswg.swift-lang'],
   toml: ['tamasfe.even-better-toml'],
   shellscript: ['mads-hartmann.bash-ide-vscode'],
   python: ['ms-python.vscode-pylance', 'ms-pyright.pyright', 'detachhead.basedpyright'],
+  kotlin: ['fwcd.kotlin'],
+  dockerfile: ['docker.docker', 'ms-azuretools.vscode-docker'],
 }
 
 let client: LanguageClient | undefined
@@ -48,7 +50,12 @@ const initializationOptions = () => {
       },
     ]),
   )
-  return { rustfmtPath: cfg.get('rustfmtPath', ''), topcoatPath: cfg.get('topcoatPath', ''), languages }
+  return {
+    rustfmtPath: cfg.get('rustfmtPath', ''),
+    topcoatPath: cfg.get('topcoatPath', ''),
+    sourcekitLsp: cfg.get('swift.sourcekitLsp', true),
+    languages,
+  }
 }
 
 const start = async (ctx: ExtensionContext) => {
@@ -69,7 +76,12 @@ const start = async (ctx: ExtensionContext) => {
       lastOptions = JSON.stringify(options)
       return options
     },
-    synchronize: { fileEvents: workspace.createFileSystemWatcher('**/*.{swift,toml,sh,bash,zsh,py,pyi,pyw}') },
+    synchronize: {
+      fileEvents: [
+        workspace.createFileSystemWatcher('**/*.{swift,toml,sh,bash,zsh,py,pyi,pyw,kt,kts,dockerfile,containerfile}'),
+        workspace.createFileSystemWatcher('**/{Dockerfile,Containerfile}*'),
+      ],
+    },
   }
 
   client = new LanguageClient('magicFormatter', 'Magic Formatter', serverOptions, clientOptions)

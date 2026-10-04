@@ -1,9 +1,9 @@
 {
   "name": "magic-formatter",
   "displayName": "Magic Formatter",
-  "description": "Formatter for Rust, Swift, TOML, shell scripts, and Python with user-controlled layout: magic trailing commas, first-argument and method-chain expansion, single-line ifs, and = alignment. Also a fast language server for Python and Swift (hover, completion, signature help, go to definition, references, rename, outline), and semantic highlighting for Swift, TOML, shell scripts, and Python.",
+  "description": "Formatter for Rust, Swift, Kotlin, TOML, shell scripts, Python, and Dockerfiles with user-controlled layout: magic trailing commas, first-argument and method-chain expansion, single-line ifs, and = alignment. Also a fast language server for Python, Swift, and Kotlin (hover, completion, signature help, go to definition, references, rename, outline), and semantic highlighting for Swift, Kotlin, TOML, shell scripts, Python, and Dockerfiles.",
   "publisher": "mariuzm",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -22,7 +22,9 @@
     "onLanguage:swift",
     "onLanguage:toml",
     "onLanguage:shellscript",
-    "onLanguage:python"
+    "onLanguage:python",
+    "onLanguage:kotlin",
+    "onLanguage:dockerfile"
   ],
   "scripts": {
     "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --minify",
@@ -69,6 +71,11 @@
           "default": "on",
           "description": "Language features for Swift: hover, completion, signature help, go to definition, references, rename, outline, folding. `auto` turns them off when the Swift extension (sourcekit-lsp) is installed."
         },
+        "magicFormatter.swift.sourcekitLsp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask sourcekit-lsp (bundled with Xcode or the Swift toolchain) first for Swift go to definition, hover, completion, and signature help, so SDK symbols like SwiftUI types resolve. Falls back to the built-in results when it has no answer. For Xcode projects, run `xcode-build-server config` once so cross-file types resolve too."
+        },
         "magicFormatter.toml.semanticHighlighting": {
           "type": "string",
           "enum": ["auto", "on", "off"],
@@ -104,6 +111,30 @@
           "enum": ["auto", "on", "off"],
           "default": "on",
           "description": "Language features for Python: hover, completion, signature help, go to definition, references, rename, outline, folding, syntax errors. `auto` turns them off when Pylance, Pyright, or BasedPyright is installed."
+        },
+        "magicFormatter.kotlin.semanticHighlighting": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "on",
+          "description": "Semantic highlighting for Kotlin. `auto` turns it off when the Kotlin Language extension is installed."
+        },
+        "magicFormatter.kotlin.references": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "on",
+          "description": "Language features for Kotlin: hover, completion, signature help, go to definition, references, rename, outline, folding. `auto` turns them off when the Kotlin Language extension is installed."
+        },
+        "magicFormatter.dockerfile.semanticHighlighting": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "on",
+          "description": "Semantic highlighting for Dockerfiles. `auto` turns it off when Docker DX or the Docker extension is installed."
+        },
+        "magicFormatter.dockerfile.references": {
+          "type": "string",
+          "enum": ["auto", "on", "off"],
+          "default": "on",
+          "description": "Find All References and go to definition for Dockerfile `ARG`/`ENV` variables and build stages. `auto` turns them off when Docker DX or the Docker extension is installed."
         }
       }
     },
@@ -127,9 +158,20 @@
         "aliases": ["TOML", "toml"],
         "extensions": [".toml"],
         "configuration": "./languages/toml.json"
+      },
+      {
+        "id": "kotlin",
+        "aliases": ["Kotlin", "kotlin"],
+        "extensions": [".kt", ".kts"],
+        "configuration": "./languages/kotlin.json"
       }
     ],
     "grammars": [
+      {
+        "language": "kotlin",
+        "scopeName": "source.kotlin",
+        "path": "./syntaxes/kotlin.tmLanguage.json"
+      },
       {
         "scopeName": "topcoat.view.injection",
         "path": "./syntaxes/topcoat-view.tmLanguage.json",

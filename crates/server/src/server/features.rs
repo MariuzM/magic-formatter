@@ -214,7 +214,8 @@ impl Server {
             return respond(&self.sender, id, Value::Null);
         };
         let (index, roots) = (self.index.clone(), self.roots.clone());
-        spawn_request(self.sender.clone(), id, move |_| {
+        let delegate       = self.delegate(lang, "textDocument/hover", params.clone());
+        spawn_delegated(self.sender.clone(), id, delegate, move |_| {
             let fence = lang.analysis().map_or("", |a| a.fence());
             let text  = origin.text.clone();
             match describe_at(lang, origin, open, offset, &index, &roots) {
@@ -232,7 +233,8 @@ impl Server {
             return respond(&self.sender, id, Value::Null);
         };
         let (index, roots) = (self.index.clone(), self.roots.clone());
-        spawn_request(self.sender.clone(), id, move |_| {
+        let delegate       = self.delegate(lang, "textDocument/signatureHelp", params.clone());
+        spawn_delegated(self.sender.clone(), id, delegate, move |_| {
             let Some(analysis) = lang.analysis() else { return Value::Null };
             let Some(tree)     = origin.tree.clone() else { return Value::Null };
             let call           = tree.root_node().descendant_for_byte_range(offset, offset).and_then(|n| analysis.call_at(n, offset));
@@ -394,7 +396,8 @@ impl Server {
             return respond(&self.sender, id, Value::Null);
         };
         let (index, roots) = (self.index.clone(), self.roots.clone());
-        spawn_request(self.sender.clone(), id, move |_| {
+        let delegate       = self.delegate(lang, "textDocument/completion", params.clone());
+        spawn_delegated(self.sender.clone(), id, delegate, move |_| {
             let Some(analysis) = lang.analysis() else { return Value::Null };
             let Some(tree)     = origin.tree.clone().or_else(|| parse(lang, &origin.text)) else {
                 return Value::Null;

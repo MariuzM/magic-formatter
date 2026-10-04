@@ -1,0 +1,9 @@
+[package]
+name              = "lang-kotlin"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+magic-core            = { workspace = true }
+tree-sitter           = { workspace = true }
+tree-sitter-kotlin-ng = { workspace = true }

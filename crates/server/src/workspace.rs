@@ -39,8 +39,8 @@ pub fn outline(path: &Path, text: &str) -> Vec<IndexedSymbol> {
     parser.parse(text, None).map(|tree| indexed(analysis, &tree, text)).unwrap_or_default()
 }
 
-pub fn index_roots(roots: Vec<PathBuf>, extensions: Vec<&'static str>, index: Arc<RwLock<Index>>) {
-    if roots.is_empty() || extensions.is_empty() {
+pub fn index_roots(roots: Vec<PathBuf>, languages: Vec<&'static str>, index: Arc<RwLock<Index>>) {
+    if roots.is_empty() || languages.is_empty() {
         return;
     }
     std::thread::spawn(move || {
@@ -49,7 +49,7 @@ pub fn index_roots(roots: Vec<PathBuf>, extensions: Vec<&'static str>, index: Ar
         for root in &roots {
             for entry in ignore::WalkBuilder::new(root).build().flatten() {
                 let path   = entry.path();
-                let wanted = path.extension().and_then(|e| e.to_str()).is_some_and(|e| extensions.contains(&e));
+                let wanted = language_for_path(path).is_some_and(|l| languages.contains(&l.id()));
                 if !wanted || !entry.file_type().is_some_and(|t| t.is_file()) {
                     continue;
                 }

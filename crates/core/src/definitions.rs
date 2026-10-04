@@ -23,8 +23,13 @@ pub fn find(tree: &Tree, src: &str, name: &str, kinds: &[(&str, &str)]) -> Vec<(
     'walk: loop {
         let node = cursor.node();
         for &(_, field) in kinds.iter().filter(|(k, _)| *k == node.kind()) {
-            let mut c = node.walk();
-            for target in node.children_by_field_name(field, &mut c).map(base_name) {
+            let mut c            = node.walk();
+            let named: Vec<Node> = if field.is_empty() {
+                node.named_children(&mut c).find(|n| n.child_count() == 0).into_iter().collect()
+            } else {
+                node.children_by_field_name(field, &mut c).collect()
+            };
+            for target in named.into_iter().map(base_name) {
                 let hit = (target.start_byte(), target.end_byte());
                 if target.utf8_text(bytes).is_ok_and(|t| t == name) && !out.contains(&hit) {
                     out.push(hit);

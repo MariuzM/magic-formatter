@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use crate::symbols::IndexedSymbol;
+use crate::symbols::{IndexedSymbol, SymbolKind};
 
 #[derive(Default)]
 pub struct Index {
@@ -12,6 +12,7 @@ pub struct Index {
     postings:   Vec<Vec<u32>>,
     file_enums: Vec<Vec<Box<str>>>,
     enums:      HashMap<Box<str>, u32>,
+    functions:  HashMap<Box<str>, u32>,
     outlines:   Vec<Vec<IndexedSymbol>>,
 }
 
@@ -26,6 +27,10 @@ impl Index {
             self.outlines.push(Vec::new());
             id
         });
+
+        for symbol in outline.iter().filter(|s| s.kind == SymbolKind::Function) {
+            *self.functions.entry(symbol.name.clone()).or_default() += 1;
+        }
 
         self.outlines[id as usize] = outline;
 
@@ -59,7 +64,16 @@ impl Index {
     pub fn remove(&mut self, path: &Path) -> Option<u32> {
         let id = *self.ids.get(path)?;
 
-        self.outlines[id as usize].clear();
+        for symbol in std::mem::take(&mut self.outlines[id as usize]) {
+            if symbol.kind == SymbolKind::Function
+                && let Some(n) = self.functions.get_mut(&symbol.name)
+            {
+                *n -= 1;
+                if *n == 0 {
+                    self.functions.remove(&symbol.name);
+                }
+            }
+        }
 
         for sym in std::mem::take(&mut self.file_syms[id as usize]) {
             self.postings[sym as usize].retain(|&f| f != id);
@@ -78,6 +92,10 @@ impl Index {
 
     pub fn is_enum(&self, name: &str) -> bool {
         self.enums.contains_key(name)
+    }
+
+    pub fn is_function(&self, name: &str) -> bool {
+        self.functions.contains_key(name)
     }
 
     pub fn files_with(&self, name: &str) -> Vec<PathBuf> {

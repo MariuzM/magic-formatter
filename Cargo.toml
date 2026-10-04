@@ -3,27 +3,31 @@ resolver = "3"
 members  = ["crates/*"]
 
 [workspace.package]
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 
 [workspace.dependencies]
-magic-core          = { path = "crates/core" }
-lang-rust           = { path = "crates/lang-rust" }
-lang-swift          = { path = "crates/lang-swift" }
-lang-toml           = { path = "crates/lang-toml" }
-lang-shell          = { path = "crates/lang-shell" }
-lang-python         = { path = "crates/lang-python" }
-tree-sitter         = "0.27"
-tree-sitter-swift   = "0.7"
-tree-sitter-toml-ng = "0.7"
-tree-sitter-bash    = "0.25"
-tree-sitter-python  = "0.25"
-streaming-iterator  = "0.1"
-lsp-server          = "0.10"
-lsp-types           = "0.97"
-serde_json          = "1"
-url                 = "2"
-ignore              = "0.4"
+magic-core                = { path = "crates/core" }
+lang-rust                 = { path = "crates/lang-rust" }
+lang-swift                = { path = "crates/lang-swift" }
+lang-toml                 = { path = "crates/lang-toml" }
+lang-shell                = { path = "crates/lang-shell" }
+lang-python               = { path = "crates/lang-python" }
+lang-kotlin               = { path = "crates/lang-kotlin" }
+lang-docker               = { path = "crates/lang-docker" }
+tree-sitter               = "0.27"
+tree-sitter-swift         = "0.7"
+tree-sitter-toml-ng       = "0.7"
+tree-sitter-bash          = "0.25"
+tree-sitter-python        = "0.25"
+tree-sitter-kotlin-ng     = { path = "crates/tree-sitter-kotlin" }
+tree-sitter-containerfile = "0.9"
+streaming-iterator        = "0.1"
+lsp-server                = "0.10"
+lsp-types                 = "0.97"
+serde_json                = "1"
+url                       = "2"
+ignore                    = "0.4"
 
 [profile.release]
 opt-level = 3

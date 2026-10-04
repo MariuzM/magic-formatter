@@ -11,15 +11,16 @@ use lsp_types::{
     SemanticTokensParams, TextEdit, Uri,
 };
 use magic_core::definitions;
-use magic_core::highlight::{TOKEN_MODIFIERS, TOKEN_TYPES, encode, mark_enums, refine_locals};
+use magic_core::highlight::{TOKEN_MODIFIERS, TOKEN_TYPES, encode, mark_enums, mark_functions, refine_locals};
 use magic_core::index::{Index, enum_declarations, type_declarations};
 use magic_core::references::{Target, identifier_at, occurrences, symbol_at};
 use magic_core::text::LineIndex;
-use magic_core::{FormatContext, Language, ToolPaths};
+use magic_core::{Analysis, FormatContext, Language, ToolPaths};
 use serde_json::{Value, json};
 use tree_sitter::{Parser, Tree};
 
 use crate::document::Document;
+use crate::sourcekit::SourceKit;
 use crate::workspace::{index_roots, outline, path_to_uri, read_source, uri_to_path};
 
 mod features;
@@ -40,7 +41,15 @@ struct Server {
     tools:    ToolPaths,
     index:    Arc<RwLock<Index>>,
     roots:    Vec<PathBuf>,
+    swift:    Swift,
 }
+
+struct Swift {
+    init:      Option<Value>,
+    sourcekit: Option<Arc<SourceKit>>,
+}
+
+type Delegate = Option<(Arc<SourceKit>, &'static str, Value)>;
 
 fn status(sender: &Sender<Message>, message: &str) {
     let line = message.lines().find(|l| !l.trim().is_empty()).unwrap_or(message);
@@ -59,6 +68,17 @@ fn spawn_request(sender: Sender<Message>, id: RequestId, work: impl FnOnce(&Send
             Err(_) => Response::new_err(id, ErrorCode::InternalError as i32, "magic-formatter: internal error".into()),
         };
         sender.send(response.into()).ok();
+    });
+}
+
+fn spawn_delegated(
+    sender: Sender<Message>,
+    id: RequestId,
+    delegate: Delegate,
+    work: impl FnOnce(&Sender<Message>) -> Value + Send + 'static,
+) {
+    spawn_request(sender, id, move |sender| {
+        delegate.and_then(|(sourcekit, method, params)| sourcekit.request(method, params)).unwrap_or_else(|| work(sender))
     });
 }
 
@@ -109,6 +129,39 @@ struct OpenFile {
 }
 
 impl Server {
+    fn sourcekit(&self, lang: &dyn Language) -> Option<Arc<SourceKit>> {
+        self.swift.sourcekit.clone().filter(|_| lang.id() == lang_swift::SWIFT.id())
+    }
+
+    fn delegate(&self, lang: &dyn Language, method: &'static str, params: Value) -> Delegate {
+        Some((self.sourcekit(lang)?, method, params))
+    }
+
+    fn start_sourcekit(&mut self, lang: &dyn Language) -> Option<Arc<SourceKit>> {
+        let enabled = lang.id() == lang_swift::SWIFT.id() && self.features.get(lang.id()).is_some_and(|f| f.language_server);
+        if enabled && let Some(init) = self.swift.init.take() {
+            self.swift.sourcekit = SourceKit::spawn(init).map(Arc::new);
+        }
+        self.swift.sourcekit.clone().filter(|_| enabled)
+    }
+
+    fn forward(&mut self, note: &Notification) {
+        let document  = &note.params["textDocument"];
+        let sourcekit = match note.method.as_str() {
+            "textDocument/didOpen" => {
+                language_by_id(document["languageId"].as_str().unwrap_or_default()).and_then(|l| self.start_sourcekit(l))
+            }
+            "textDocument/didChange" | "textDocument/didClose" => {
+                document["uri"].as_str().and_then(|u| self.docs.get(u)).and_then(|d| self.sourcekit(d.lang))
+            }
+            "workspace/didChangeWatchedFiles" => self.swift.sourcekit.clone(),
+            _ => None,
+        };
+        if let Some(sourcekit) = sourcekit {
+            sourcekit.notify(&note.method, note.params.clone());
+        }
+    }
+
     fn needs_tree(&self, lang: &dyn Language) -> bool {
         self.features.get(lang.id()).is_some_and(|f| f.semantic_tokens || f.references)
     }
@@ -213,6 +266,7 @@ impl Server {
             let types: HashSet<&str> = type_declarations(&doc.text).collect();
             let index                = self.index.read().unwrap();
             mark_enums(&mut spans, &doc.text, |name| enums.contains(name) || !types.contains(name) && index.is_enum(name));
+            mark_functions(&mut spans, &doc.text, |name| !types.contains(name) && !index.is_enum(name) && index.is_function(name));
             if let Some(analysis) = doc.lang.analysis().filter(|_| self.features.get(doc.lang.id()).is_some_and(|f| f.language_server)) {
                 refine_locals(analysis, tree, &doc.text, &mut spans);
                 analysis.refine(tree, &doc.text, &mut spans);
@@ -281,14 +335,21 @@ impl Server {
     }
 
     fn goto(&mut self, id: RequestId, params: GotoDefinitionParams, implementation: bool) {
+        let raw                                = serde_json::to_value(&params).unwrap_or_default();
         let p                                  = params.text_document_position_params;
         let Some((lang, offset, origin, open)) = self.lookup_context(p.text_document.uri, p.position) else {
             respond(&self.sender, id, Value::Null);
             return;
         };
-        let index = self.index.clone();
-        let roots = self.roots.clone();
-        spawn_request(self.sender.clone(), id, move |_| {
+        let index  = self.index.clone();
+        let roots  = self.roots.clone();
+        let method = if implementation {
+            "textDocument/implementation"
+        } else {
+            "textDocument/definition"
+        };
+        let delegate = self.delegate(lang, method, raw);
+        spawn_delegated(self.sender.clone(), id, delegate, move |_| {
             serde_json::to_value(find_definitions(lang, origin, open, offset, implementation, &index, &roots)).unwrap()
         });
     }
@@ -322,6 +383,7 @@ impl Server {
     }
 
     fn handle_notification(&mut self, note: Notification) {
+        self.forward(&note);
         match note.method.as_str() {
             "textDocument/didOpen" => {
                 let Ok(p) = note.extract::<DidOpenTextDocumentParams>("textDocument/didOpen") else {
@@ -478,7 +540,7 @@ fn find_definitions(
             range: to_range(&origin.text, &lines, (def.start, def.end)),
         }];
     }
-    let local = definitions::find(&tree, &origin.text, &symbol.name, kinds);
+    let local = definition_hits(analysis, &tree, &origin.text, &symbol.name, kinds, implementation);
     if !implementation && !local.is_empty() {
         let lines = LineIndex::new(&origin.text);
         return local
@@ -491,7 +553,7 @@ fn find_definitions(
     }
     let mut out = search(lang, &origin, &tree, &open, &symbol.name, index, |file, tree, out| {
         let lines = LineIndex::new(&file.text);
-        for hit in definitions::find(tree, &file.text, &symbol.name, kinds) {
+        for hit in definition_hits(analysis, tree, &file.text, &symbol.name, kinds, implementation) {
             out.push(Location {
                 uri:   file.uri.clone(),
                 range: to_range(&file.text, &lines, hit),
@@ -501,7 +563,34 @@ fn find_definitions(
     if !implementation && out.iter().any(|l| l.uri == origin.uri) {
         out.retain(|l| l.uri == origin.uri);
     }
+    if out.is_empty()
+        && let Some(range) = analysis.import_fallback(&tree, &origin.text, &symbol.name)
+    {
+        let lines = LineIndex::new(&origin.text);
+        out.push(Location {
+            uri:   origin.uri.clone(),
+            range: to_range(&origin.text, &lines, range),
+        });
+    }
     out
+}
+
+fn definition_hits(
+    analysis: &dyn Analysis,
+    tree: &Tree,
+    src: &str,
+    name: &str,
+    kinds: &[(&str, &str)],
+    implementation: bool,
+) -> Vec<(usize, usize)> {
+    if implementation && let Some(hits) = analysis.implementations(tree, src, name) {
+        return hits;
+    }
+    let root = tree.root_node();
+    definitions::find(tree, src, name, kinds)
+        .into_iter()
+        .filter(|&(start, end)| root.descendant_for_byte_range(start, end).is_some_and(|n| analysis.is_definition(n)))
+        .collect()
 }
 
 fn search(
@@ -554,8 +643,13 @@ fn search(
 pub fn run() {
     let (connection, io_threads) = Connection::stdio();
     let Ok((id, params))         = connection.initialize_start() else { return };
-    let init: InitializeParams   = serde_json::from_value(params).unwrap_or_default();
+    let init: InitializeParams   = serde_json::from_value(params.clone()).unwrap_or_default();
     let options                  = init.initialization_options.unwrap_or(Value::Null);
+
+    let mut sourcekit_init = params;
+    if let Some(p) = sourcekit_init.as_object_mut() {
+        p.remove("initializationOptions");
+    }
 
     let mut features = HashMap::new();
     for lang in LANGUAGES.iter().filter(|l| l.analysis().is_some()) {
@@ -592,15 +686,16 @@ pub fn run() {
         tools,
         index: Arc::new(RwLock::new(Index::default())),
         roots: roots.clone(),
+        swift: Swift {
+            init:      options["sourcekitLsp"].as_bool().unwrap_or(true).then_some(sourcekit_init),
+            sourcekit: None,
+        },
     };
     server.register_capabilities();
 
-    let extensions: Vec<&'static str> = LANGUAGES
-        .iter()
-        .filter(|l| server.features.get(l.id()).is_some_and(|f| f.references))
-        .flat_map(|l| l.extensions().iter().copied())
-        .collect();
-    index_roots(roots, extensions, server.index.clone());
+    let languages: Vec<&'static str> =
+        LANGUAGES.iter().filter(|l| server.features.get(l.id()).is_some_and(|f| f.references)).map(|l| l.id()).collect();
+    index_roots(roots, languages, server.index.clone());
 
     for msg in &connection.receiver {
         match msg {
