@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
+use magic_core::cursor::SpanCursor;
 use magic_core::describe::{Call, Description, collapse_ws, comments_before, first_line};
 use magic_core::highlight::{Span, token_type};
 use magic_core::locals::Locals;
 use magic_core::symbols::{SymbolInfo, SymbolKind};
 use tree_sitter::{Node, Tree};
-
-use crate::SWIFT;
 
 pub const BUILTINS: &[&str] = &[
     "print",
@@ -271,7 +270,7 @@ fn declared<'s>(tree: &Tree, src: &'s str) -> Declared<'s> {
     out
 }
 
-pub fn refine(tree: &Tree, src: &str, spans: &mut [Span]) {
+pub fn refine(tree: &Tree, src: &str, spans: &mut [Span], locals: &Locals) {
     let names = [
         "variable",
         "function",
@@ -285,16 +284,15 @@ pub fn refine(tree: &Tree, src: &str, spans: &mut [Span]) {
     let [variable, function, method, property, ty, namespace, member, generic] = names.map(token_type);
 
     let found                                                = declared(tree, src);
-    let locals                                               = Locals::collect(&SWIFT, tree, src);
-    let root                                                 = tree.root_node();
+    let mut cursor                                           = SpanCursor::new(tree);
     let mut cache: HashMap<usize, Vec<(String, SymbolKind)>> = HashMap::new();
     for span in spans.iter_mut() {
-        let node       = root.descendant_for_byte_range(span.start, span.end);
-        let Some(node) = node.filter(|n| n.start_byte() == span.start && n.end_byte() == span.end && n.child_count() == 0) else {
+        let node = cursor.seek(span.start, span.end);
+        if !(node.start_byte() == span.start && node.end_byte() == span.end && node.child_count() == 0) {
             continue;
-        };
+        }
         let name   = &src[span.start..span.end];
-        let parent = node.parent().map_or("", |p| p.kind());
+        let parent = cursor.parent().map_or("", |p| p.kind());
         let kind   = span.kind.ty;
         if found.modules.contains(&name) && (kind == ty || kind == variable) {
             span.kind.ty = namespace;
@@ -310,9 +308,9 @@ pub fn refine(tree: &Tree, src: &str, spans: &mut [Span]) {
             && (kind == variable || kind == function)
             && parent != "navigation_suffix"
             && locals.resolve(name, span.start).is_none()
-            && let Some(body) = std::iter::successors(Some(node), |n| n.parent()).find(|n| TYPE_BODIES.contains(&n.kind()))
+            && let Some(&body) = cursor.ancestors().iter().rev().find(|n| TYPE_BODIES.contains(&n.kind()))
         {
-            let members = cache.entry(body.id()).or_insert_with(|| self_members(node, src));
+            let members = cache.entry(body.id()).or_insert_with(|| body_members(body, src));
             match members.iter().find(|(m, _)| m == name).map(|(_, k)| *k) {
                 Some(SymbolKind::Property) => span.kind.ty = property,
                 Some(SymbolKind::Method) => span.kind.ty = method,
@@ -323,9 +321,13 @@ pub fn refine(tree: &Tree, src: &str, spans: &mut [Span]) {
 }
 
 pub fn self_members(node: Node, src: &str) -> Vec<(String, SymbolKind)> {
-    let Some(body) = std::iter::successors(Some(node), |n| n.parent()).find(|n| TYPE_BODIES.contains(&n.kind())) else {
-        return Vec::new();
-    };
+    match std::iter::successors(Some(node), |n| n.parent()).find(|n| TYPE_BODIES.contains(&n.kind())) {
+        Some(body) => body_members(body, src),
+        None => Vec::new(),
+    }
+}
+
+fn body_members(body: Node, src: &str) -> Vec<(String, SymbolKind)> {
     let mut cursor = body.walk();
     body.named_children(&mut cursor)
         .filter_map(|c| match c.kind() {

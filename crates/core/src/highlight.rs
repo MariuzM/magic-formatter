@@ -1,6 +1,7 @@
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Query, QueryCursor, Tree};
 
+use crate::cursor::SpanCursor;
 use crate::language::Analysis;
 use crate::locals::Locals;
 use crate::text::{LineIndex, utf16_len};
@@ -214,20 +215,20 @@ pub fn token_type(name: &str) -> u32 {
     ty(name)
 }
 
-pub fn refine_locals(lang: &dyn Analysis, tree: &Tree, src: &str, spans: &mut [Span]) {
+pub fn refine_locals(lang: &dyn Analysis, tree: &Tree, src: &str, spans: &mut [Span], locals: &Locals) {
     let (variable, parameter, function) = (ty("variable"), ty("parameter"), ty("function"));
-    let locals                          = Locals::collect(lang, tree, src);
     let kinds                           = lang.identifier_kinds();
+    let mut cursor                      = SpanCursor::new(tree);
     for i in 0..spans.len() {
         let span = spans[i];
         if span.kind.ty != variable && span.kind.ty != function {
             continue;
         }
-        let node       = tree.root_node().descendant_for_byte_range(span.start, span.end);
-        let Some(node) = node.filter(|n| kinds.contains(&n.kind()) && n.start_byte() == span.start && n.end_byte() == span.end) else {
+        let node = cursor.seek(span.start, span.end);
+        if !(kinds.contains(&node.kind()) && node.start_byte() == span.start && node.end_byte() == span.end) {
             continue;
-        };
-        if !lang.resolves_locally(node) {
+        }
+        if !lang.resolves_locally(node, cursor.parent()) {
             continue;
         }
         let Some(def) = locals.resolve(&src[span.start..span.end], span.start).filter(|d| d.start != span.start) else {
@@ -263,6 +264,9 @@ pub fn encode(spans: &[Span], src: &str, lines: &LineIndex) -> Vec<u32> {
     let mut data      = Vec::with_capacity(spans.len() * 5);
     let mut prev_line = 0u32;
     let mut prev_col  = 0u32;
+    let mut cur_line  = usize::MAX;
+    let mut col_byte  = 0;
+    let mut col_utf16 = 0;
     for span in spans {
         let mut start = span.start;
         while start < span.end {
@@ -275,8 +279,15 @@ pub fn encode(spans: &[Span], src: &str, lines: &LineIndex) -> Vec<u32> {
             let end   = span.end.min(line_end);
             let piece = src[start..end].trim_end_matches('\r');
             if !piece.is_empty() {
-                let col = utf16_len(&src[lines.line_start(line)..start]) as u32;
-                let len = utf16_len(piece) as u32;
+                if line != cur_line || start < col_byte {
+                    cur_line  = line;
+                    col_byte  = lines.line_start(line);
+                    col_utf16 = 0;
+                }
+                col_utf16 += utf16_len(&src[col_byte..start]);
+                col_byte   = start;
+                let col    = col_utf16 as u32;
+                let len    = utf16_len(piece) as u32;
                 let l   = line as u32;
                 let dl  = l - prev_line;
                 let dc  = if dl == 0 { col - prev_col } else { col };

@@ -3,7 +3,7 @@ resolver = "3"
 members  = ["crates/*"]
 
 [workspace.package]
-version = "0.7.0"
+version = "0.8.0"
 edition = "2024"
 
 [workspace.dependencies]
@@ -30,6 +30,7 @@ url                       = "2"
 ignore                    = "0.4"
 
 [profile.release]
-opt-level = 3
-lto       = true
-strip     = true
+opt-level     = 3
+lto           = true
+strip         = true
+codegen-units = 1

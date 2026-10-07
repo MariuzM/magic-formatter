@@ -12,6 +12,17 @@ impl LineIndex {
         Self { starts }
     }
 
+    pub fn edit(&mut self, start: usize, end: usize, inserted: &str) {
+        let first = self.starts.partition_point(|&s| s <= start);
+        let last  = self.starts.partition_point(|&s| s <= end);
+        let added = end - start;
+        for s in &mut self.starts[last..] {
+            *s = *s - added + inserted.len();
+        }
+        let lines = inserted.bytes().enumerate().filter(|&(_, b)| b == b'\n').map(|(i, _)| start + i + 1);
+        self.starts.splice(first..last, lines);
+    }
+
     pub fn line_count(&self) -> usize {
         self.starts.len()
     }

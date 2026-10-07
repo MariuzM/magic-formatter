@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 use magic_core::completion::word_start;
 use magic_core::describe::{Call, Description};
 use magic_core::highlight::{Highlighter, Precedence, Span};
+use magic_core::locals::Locals;
 use magic_core::symbols::{SymbolInfo, SymbolKind};
 use magic_core::{Analysis, FormatContext, Formatted, Language};
 use tree_sitter::{Node, Tree};
@@ -121,11 +122,11 @@ impl Analysis for Swift {
         }
     }
 
-    fn resolves_locally(&self, node: Node) -> bool {
+    fn resolves_locally(&self, node: Node, parent: Option<Node>) -> bool {
         if node.kind() != "simple_identifier" {
             return false;
         }
-        let Some(parent) = node.parent() else { return true };
+        let Some(parent) = parent else { return true };
         if NON_LOCAL_PARENTS.contains(&parent.kind()) {
             return false;
         }
@@ -182,8 +183,8 @@ impl Analysis for Swift {
         features::BUILTINS
     }
 
-    fn refine(&self, tree: &Tree, src: &str, spans: &mut [Span]) {
-        features::refine(tree, src, spans);
+    fn refine(&self, tree: &Tree, src: &str, spans: &mut [Span], locals: &Locals) {
+        features::refine(tree, src, spans, locals);
     }
 
     fn member_completions(

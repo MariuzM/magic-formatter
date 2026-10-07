@@ -1,12 +1,13 @@
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::sync::Arc;
 
 use crate::symbols::{IndexedSymbol, SymbolKind};
 
 #[derive(Default)]
 pub struct Index {
-    paths:      Vec<PathBuf>,
-    ids:        HashMap<PathBuf, u32>,
+    paths:      Vec<Arc<Path>>,
+    ids:        HashMap<Arc<Path>, u32>,
     file_syms:  Vec<Vec<u32>>,
     symbols:    HashMap<Box<str>, u32>,
     postings:   Vec<Vec<u32>>,
@@ -14,17 +15,20 @@ pub struct Index {
     enums:      HashMap<Box<str>, u32>,
     functions:  HashMap<Box<str>, u32>,
     outlines:   Vec<Vec<IndexedSymbol>>,
+    file_defs:  Vec<Option<Vec<u32>>>,
 }
 
 impl Index {
-    pub fn update(&mut self, path: &Path, text: &str, outline: Vec<IndexedSymbol>) {
+    pub fn update(&mut self, path: &Path, text: &str, outline: Vec<IndexedSymbol>, defined: Option<Vec<(usize, usize)>>) {
         let id = self.remove(path).unwrap_or_else(|| {
-            let id = self.paths.len() as u32;
-            self.paths.push(path.to_path_buf());
-            self.ids.insert(path.to_path_buf(), id);
+            let id              = self.paths.len() as u32;
+            let path: Arc<Path> = Arc::from(path);
+            self.paths.push(path.clone());
+            self.ids.insert(path, id);
             self.file_syms.push(Vec::new());
             self.file_enums.push(Vec::new());
             self.outlines.push(Vec::new());
+            self.file_defs.push(None);
             id
         });
 
@@ -55,10 +59,21 @@ impl Index {
                     s
                 }
             };
-            self.postings[sym as usize].push(id);
+            let postings = &mut self.postings[sym as usize];
+            if let Err(at) = postings.binary_search(&id) {
+                postings.insert(at, id);
+            }
             syms.push(sym);
         }
         self.file_syms[id as usize] = syms;
+
+        self.file_defs[id as usize] = defined.map(|ranges| {
+            let mut defs: Vec<u32> =
+                ranges.into_iter().filter_map(|(start, end)| self.symbols.get(identifiers(text.get(start..end)?).next()?).copied()).collect();
+            defs.sort_unstable();
+            defs.dedup();
+            defs
+        });
     }
 
     pub fn remove(&mut self, path: &Path) -> Option<u32> {
@@ -75,8 +90,13 @@ impl Index {
             }
         }
 
+        self.file_defs[id as usize] = None;
+
         for sym in std::mem::take(&mut self.file_syms[id as usize]) {
-            self.postings[sym as usize].retain(|&f| f != id);
+            let postings = &mut self.postings[sym as usize];
+            if let Ok(at) = postings.binary_search(&id) {
+                postings.remove(at);
+            }
         }
 
         for name in std::mem::take(&mut self.file_enums[id as usize]) {
@@ -98,15 +118,28 @@ impl Index {
         self.functions.contains_key(name)
     }
 
-    pub fn files_with(&self, name: &str) -> Vec<PathBuf> {
-        self.symbols
-            .get(identifiers(name).next().unwrap_or(name))
-            .map(|&s| self.postings[s as usize].iter().map(|&f| self.paths[f as usize].clone()).collect())
-            .unwrap_or_default()
+    pub fn files_with(&self, name: &str) -> Vec<Arc<Path>> {
+        self.files_where(name, |_, _| true)
+    }
+
+    pub fn files_defining(&self, name: &str) -> Vec<Arc<Path>> {
+        self.files_where(name, |sym, file| self.file_defs[file as usize].as_ref().is_none_or(|defs| defs.binary_search(&sym).is_ok()))
+    }
+
+    fn files_where(&self, name: &str, keep: impl Fn(u32, u32) -> bool) -> Vec<Arc<Path>> {
+        let Some(&sym) = self.symbols.get(identifiers(name).next().unwrap_or(name)) else {
+            return Vec::new();
+        };
+        let mut files: Vec<Arc<Path>> =
+            self.postings[sym as usize].iter().filter(|&&f| keep(sym, f)).map(|&f| self.paths[f as usize].clone()).collect();
+        files.sort_unstable();
+        files
     }
 
     pub fn outline(&self) -> impl Iterator<Item = (&Path, &IndexedSymbol)> {
-        self.paths.iter().zip(&self.outlines).flat_map(|(p, syms)| syms.iter().map(move |s| (p.as_path(), s)))
+        let mut order: Vec<usize> = (0..self.paths.len()).collect();
+        order.sort_unstable_by(|&a, &b| self.paths[a].cmp(&self.paths[b]));
+        order.into_iter().flat_map(move |i| self.outlines[i].iter().map(move |s| (&*self.paths[i], s)))
     }
 
     pub fn file_count(&self) -> usize {

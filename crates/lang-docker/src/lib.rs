@@ -34,7 +34,7 @@ impl Analysis for Docker {
 
     fn collect_definitions<'t>(&self, _node: Node<'t>, _src: &[u8], _out: &mut Vec<(Node<'t>, usize)>) {}
 
-    fn resolves_locally(&self, _node: Node) -> bool {
+    fn resolves_locally(&self, _node: Node, _parent: Option<Node>) -> bool {
         false
     }
 

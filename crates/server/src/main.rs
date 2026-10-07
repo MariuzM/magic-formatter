@@ -1,4 +1,5 @@
 mod document;
+mod pool;
 mod server;
 mod sourcekit;
 mod workspace;

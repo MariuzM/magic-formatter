@@ -27,7 +27,7 @@ pub fn identifier_at<'t>(lang: &dyn Analysis, tree: &'t Tree, offset: usize) -> 
 pub fn symbol_at(lang: &dyn Analysis, tree: &Tree, src: &str, offset: usize) -> Option<Symbol> {
     let node   = identifier_at(lang, tree, offset)?;
     let name   = node.utf8_text(src.as_bytes()).ok()?.to_string();
-    let target = if lang.resolves_locally(node) {
+    let target = if lang.resolves_locally(node, node.parent()) {
         Locals::collect(lang, tree, src)
             .resolve(&name, node.start_byte())
             .map_or(Target::Global, |d| Target::Local(d.clone()))
@@ -53,7 +53,7 @@ pub fn occurrences(
     'walk: loop {
         let node = cursor.node();
         if node.child_count() == 0 && kinds.contains(&node.kind()) && node.utf8_text(bytes).is_ok_and(|t| t == symbol.name) {
-            let local = if lang.resolves_locally(node) {
+            let local = if lang.resolves_locally(node, node.parent()) {
                 locals.resolve(&symbol.name, node.start_byte())
             } else {
                 None

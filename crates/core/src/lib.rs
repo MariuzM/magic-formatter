@@ -1,4 +1,5 @@
 pub mod completion;
+pub mod cursor;
 pub mod definitions;
 pub mod describe;
 pub mod diagnostics;

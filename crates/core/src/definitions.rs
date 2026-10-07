@@ -16,8 +16,24 @@ fn base_name(mut node: Node) -> Node {
 }
 
 pub fn find(tree: &Tree, src: &str, name: &str, kinds: &[(&str, &str)]) -> Vec<(usize, usize)> {
-    let bytes      = src.as_bytes();
-    let mut out    = Vec::new();
+    let bytes   = src.as_bytes();
+    let mut out = Vec::new();
+    targets(tree, kinds, |target| {
+        let hit = (target.start_byte(), target.end_byte());
+        if target.utf8_text(bytes).is_ok_and(|t| t == name) && !out.contains(&hit) {
+            out.push(hit);
+        }
+    });
+    out
+}
+
+pub fn name_ranges(tree: &Tree, kinds: &[(&str, &str)]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    targets(tree, kinds, |target| out.push((target.start_byte(), target.end_byte())));
+    out
+}
+
+fn targets<'t>(tree: &'t Tree, kinds: &[(&str, &str)], mut f: impl FnMut(Node<'t>)) {
     let mut cursor = tree.walk();
 
     'walk: loop {
@@ -30,10 +46,7 @@ pub fn find(tree: &Tree, src: &str, name: &str, kinds: &[(&str, &str)]) -> Vec<(
                 node.children_by_field_name(field, &mut c).collect()
             };
             for target in named.into_iter().map(base_name) {
-                let hit = (target.start_byte(), target.end_byte());
-                if target.utf8_text(bytes).is_ok_and(|t| t == name) && !out.contains(&hit) {
-                    out.push(hit);
-                }
+                f(target);
             }
         }
         if cursor.goto_first_child() {
@@ -48,5 +61,4 @@ pub fn find(tree: &Tree, src: &str, name: &str, kinds: &[(&str, &str)]) -> Vec<(
             }
         }
     }
-    out
 }

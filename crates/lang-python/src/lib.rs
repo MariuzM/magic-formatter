@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 use magic_core::completion::grammar_keywords;
 use magic_core::describe::{Call, Description};
 use magic_core::highlight::{Highlighter, Precedence, Span};
+use magic_core::locals::Locals;
 use magic_core::symbols::{SymbolInfo, SymbolKind};
 use magic_core::{Analysis, FormatContext, Formatted, Language};
 use tree_sitter::{Node, Tree};
@@ -170,11 +171,11 @@ impl Analysis for Python {
         }
     }
 
-    fn resolves_locally(&self, node: Node) -> bool {
+    fn resolves_locally(&self, node: Node, parent: Option<Node>) -> bool {
         if node.kind() != "identifier" {
             return false;
         }
-        let Some(parent) = node.parent() else { return true };
+        let Some(parent) = parent else { return true };
         match parent.kind() {
             "attribute" => parent.child_by_field_name("attribute") != Some(node),
             "keyword_argument" => parent.child_by_field_name("name") != Some(node),
@@ -244,7 +245,7 @@ impl Analysis for Python {
         true
     }
 
-    fn refine(&self, tree: &Tree, src: &str, spans: &mut [Span]) {
+    fn refine(&self, tree: &Tree, src: &str, spans: &mut [Span], _locals: &Locals) {
         features::refine(tree, src, spans);
     }
 

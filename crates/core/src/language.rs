@@ -5,6 +5,7 @@ use tree_sitter::{Node, Tree};
 use crate::completion::grammar_keywords;
 use crate::describe::{Call, Description};
 use crate::highlight::{Highlighter, Span};
+use crate::locals::Locals;
 use crate::symbols::{SymbolInfo, SymbolKind};
 
 #[derive(Clone, Debug, Default)]
@@ -51,7 +52,7 @@ pub trait Analysis: Send + Sync {
 
     fn collect_definitions<'t>(&self, node: Node<'t>, src: &[u8], out: &mut Vec<(Node<'t>, usize)>);
 
-    fn resolves_locally(&self, node: Node) -> bool;
+    fn resolves_locally(&self, node: Node, parent: Option<Node>) -> bool;
 
     fn definition_kinds(&self, _node: Node) -> &'static [(&'static str, &'static str)] {
         &[]
@@ -128,7 +129,7 @@ pub trait Analysis: Send + Sync {
         false
     }
 
-    fn refine(&self, _tree: &Tree, _src: &str, _spans: &mut [Span]) {}
+    fn refine(&self, _tree: &Tree, _src: &str, _spans: &mut [Span], _locals: &Locals) {}
 
     fn mask(&self, _src: &str) -> Option<String> {
         None

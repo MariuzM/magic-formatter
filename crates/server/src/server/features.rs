@@ -144,9 +144,7 @@ fn describe_at(
     let (text, tree) = if target.uri == uri {
         (text, tree)
     } else {
-        let text = read_source(&uri_to_path(&target.uri)?)?;
-        let tree = parse(lang, &text)?;
-        (text, tree)
+        parsed(lang, &uri_to_path(&target.uri)?)?
     };
     let lines = LineIndex::new(&text);
     let def   = identifier_at(analysis, &tree, lines.offset(&text, start.line, start.character))?;
@@ -215,7 +213,7 @@ impl Server {
         };
         let (index, roots) = (self.index.clone(), self.roots.clone());
         let delegate       = self.delegate(lang, "textDocument/hover", params.clone());
-        spawn_delegated(self.sender.clone(), id, delegate, move |_| {
+        spawn_delegated(&self.pool, id, delegate, move |_| {
             let fence = lang.analysis().map_or("", |a| a.fence());
             let text  = origin.text.clone();
             match describe_at(lang, origin, open, offset, &index, &roots) {
@@ -234,7 +232,7 @@ impl Server {
         };
         let (index, roots) = (self.index.clone(), self.roots.clone());
         let delegate       = self.delegate(lang, "textDocument/signatureHelp", params.clone());
-        spawn_delegated(self.sender.clone(), id, delegate, move |_| {
+        spawn_delegated(&self.pool, id, delegate, move |_| {
             let Some(analysis) = lang.analysis() else { return Value::Null };
             let Some(tree)     = origin.tree.clone() else { return Value::Null };
             let call           = tree.root_node().descendant_for_byte_range(offset, offset).and_then(|n| analysis.call_at(n, offset));
@@ -276,7 +274,7 @@ impl Server {
         let query                     = params["query"].as_str().unwrap_or_default().to_string();
         let index                     = self.index.clone();
         let wanted: Vec<&'static str> = LANGUAGES.iter().filter(|l| self.language_server(**l)).map(|l| l.id()).collect();
-        spawn_request(self.sender.clone(), id, move |_| {
+        spawn_request(&self.pool, id, move |_| {
             let index = index.read().unwrap();
             let hits: Vec<Value> = index
                 .outline()
@@ -342,7 +340,7 @@ impl Server {
             return respond(&self.sender, id, Value::Null);
         };
         let index = self.index.clone();
-        spawn_request(self.sender.clone(), id, move |_| {
+        spawn_request(&self.pool, id, move |_| {
             let mut changes: HashMap<String, Vec<Value>> = HashMap::new();
             for loc in find_references(lang, origin, open, offset, true, &index) {
                 changes.entry(loc.uri.as_str().to_string()).or_default().push(json!({ "range": loc.range, "newText": new_name }));
@@ -397,7 +395,7 @@ impl Server {
         };
         let (index, roots) = (self.index.clone(), self.roots.clone());
         let delegate       = self.delegate(lang, "textDocument/completion", params.clone());
-        spawn_delegated(self.sender.clone(), id, delegate, move |_| {
+        spawn_delegated(&self.pool, id, delegate, move |_| {
             let Some(analysis) = lang.analysis() else { return Value::Null };
             let Some(tree)     = origin.tree.clone().or_else(|| parse(lang, &origin.text)) else {
                 return Value::Null;
