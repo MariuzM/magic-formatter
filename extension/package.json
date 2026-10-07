@@ -3,7 +3,7 @@
   "displayName": "Magic Formatter",
   "description": "Formatter for Rust, Swift, Kotlin, TOML, shell scripts, Python, and Dockerfiles with user-controlled layout: magic trailing commas, first-argument and method-chain expansion, single-line ifs, and = alignment. Also a fast language server for Python, Swift, and Kotlin (hover, completion, signature help, go to definition, references, rename, outline), and semantic highlighting for Swift, Kotlin, TOML, shell scripts, Python, and Dockerfiles.",
   "publisher": "mariuzm",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "license": "MIT",
   "repository": {
     "type": "git",

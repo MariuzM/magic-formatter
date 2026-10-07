@@ -189,6 +189,39 @@ fn parse(src: &str) -> Result<Tree, String> {
     parser.parse(src, None).ok_or_else(|| "parser failed".into())
 }
 
+fn caret_regex_starts(node: Node, src: &str, out: &mut Vec<usize>) {
+    if node.kind() == "custom_operator"
+        && node.parent().is_some_and(|p| p.kind() == "prefix_expression")
+        && src[node.start_byte()..node.end_byte()].starts_with("/^")
+    {
+        out.push(node.start_byte());
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        caret_regex_starts(child, src, out);
+    }
+}
+
+fn parse_masked(src: &str) -> Result<Tree, String> {
+    let tree       = parse(src)?;
+    let mut starts = Vec::new();
+    caret_regex_starts(tree.root_node(), src, &mut starts);
+    if starts.is_empty() {
+        return Ok(tree);
+    }
+    let mut bytes = src.as_bytes().to_vec();
+    for start in starts {
+        let mut i = start + 1;
+        while i < bytes.len() && bytes[i] != b'\n' && bytes[i] != b'/' {
+            i += if bytes[i] == b'\\' { 2 } else { 1 };
+        }
+        if bytes.get(i) == Some(&b'/') {
+            bytes[start + 1..i].fill(b'a');
+        }
+    }
+    parse(&String::from_utf8(bytes).map_err(|e| e.to_string())?)
+}
+
 fn is_open(kind: &str) -> bool {
     matches!(kind, "(" | "[" | "{")
 }
@@ -765,7 +798,7 @@ fn strip_ws(s: &str) -> impl Iterator<Item = char> + '_ {
 }
 
 pub fn format(src: &str, opts: &Options) -> Result<String, String> {
-    let tree   = parse(src)?;
+    let tree   = parse_masked(src)?;
     let errors = error_count(tree.root_node());
     let toks   = tokens(&tree, src);
     if toks.is_empty() {
@@ -785,7 +818,7 @@ pub fn format(src: &str, opts: &Options) -> Result<String, String> {
     if !strip_ws(src).eq(strip_ws(&out)) {
         return Err("formatter safety check failed: output changed non-whitespace content".into());
     }
-    if error_count(parse(&out)?.root_node()) > errors {
+    if error_count(parse_masked(&out)?.root_node()) > errors {
         return Err("formatter safety check failed: output introduced a syntax error".into());
     }
     Ok(out)

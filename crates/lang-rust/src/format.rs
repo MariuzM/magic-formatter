@@ -3,9 +3,12 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const MARK: &str          = concat!("// __magic_", "formatter__");
 const KEYWORDS: [&str; 6] = ["if", "while", "for", "match", "loop", "else"];
+
+static NO_NIGHTLY: AtomicBool = AtomicBool::new(false);
 
 fn char_literal_end(s: &[char], i: usize) -> Option<usize> {
     if s.get(i).copied() != Some('\'') {
@@ -797,11 +800,21 @@ fn run(binary: &Path, args: &[&str], input: &str, cwd: &Path) -> Result<String, 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+fn run_rustfmt(binary: &Path, edition: &str, input: &str, cwd: &Path) -> Result<String, String> {
+    if !NO_NIGHTLY.load(Ordering::Relaxed) {
+        match run(binary, &["+nightly", "--edition", edition], input, cwd) {
+            Err(e) if e.contains("`+nightly`") || e.contains("toolchain 'nightly") => NO_NIGHTLY.store(true, Ordering::Relaxed),
+            res => return res,
+        }
+    }
+    run(binary, &["--edition", edition], input, cwd)
+}
+
 pub fn format(src: &str, dir: &Path, rustfmt: Option<&Path>) -> Result<String, String> {
     let sigs      = inline_if_signatures(src);
     let marked    = add_marks(&add_chain_marks(src));
     let edition   = find_edition(dir);
-    let formatted = run(&rustfmt_path(rustfmt), &["+nightly", "--edition", &edition], &marked, dir)?;
+    let formatted = run_rustfmt(&rustfmt_path(rustfmt), &edition, &marked, dir)?;
     Ok(align_assignments(&join_inline_ifs(&strip_marks(&formatted), &sigs)))
 }
 

@@ -269,7 +269,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "lang-docker"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "lang-kotlin"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -287,7 +287,7 @@ dependencies = [
 
 [[package]]
 name = "lang-python"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -296,14 +296,14 @@ dependencies = [
 
 [[package]]
 name = "lang-rust"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "magic-core",
 ]
 
 [[package]]
 name = "lang-shell"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -312,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "lang-swift"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -321,7 +321,7 @@ dependencies = [
 
 [[package]]
 name = "lang-toml"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "magic-core",
  "tree-sitter",
@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "magic-core"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "streaming-iterator",
  "tree-sitter",
@@ -376,7 +376,7 @@ dependencies = [
 
 [[package]]
 name = "magic-formatter"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "crossbeam-channel",
  "ignore",
