@@ -63,8 +63,14 @@ impl Analysis for Kotlin {
     }
 
     fn highlighter(&self) -> &Highlighter {
-        self.highlighter
-            .get_or_init(|| Highlighter::new(&self.grammar(), include_str!("../queries/highlights.scm"), Precedence::LastWins, &[]))
+        self.highlighter.get_or_init(|| {
+            Highlighter::new(
+                &self.grammar(),
+                include_str!("../queries/highlights.scm"),
+                Precedence::LastWins,
+                &[],
+            )
+        })
     }
 
     fn identifier_kinds(&self) -> &'static [&'static str] {
@@ -87,9 +93,18 @@ impl Analysis for Kotlin {
         ]
     }
 
-    fn collect_definitions<'t>(&self, node: Node<'t>, _src: &[u8], out: &mut Vec<(Node<'t>, usize)>) {
+    fn collect_definitions<'t>(
+        &self,
+        node: Node<'t>,
+        _src: &[u8],
+        out:  &mut Vec<(Node<'t>, usize)>,
+    ) {
         match node.kind() {
-            "parameter" if node.parent().is_some_and(|p| p.kind() == "function_value_parameters") => {
+            "parameter"
+                if node
+                    .parent()
+                    .is_some_and(|p| p.kind() == "function_value_parameters") =>
+            {
                 out.extend(identifier(node).map(|n| (n, n.start_byte())));
             }
             "variable_declaration" => {
@@ -183,13 +198,15 @@ impl Analysis for Kotlin {
 
     fn member_completions(
         &self,
-        tree: &Tree,
-        src: &str,
+        tree:   &Tree,
+        src:    &str,
         offset: usize,
-        _file: &Path,
+        _file:  &Path,
         _roots: &[PathBuf],
     ) -> Option<Vec<(String, SymbolKind)>> {
-        let dot      = word_start(src, offset).checked_sub(1).filter(|&d| src.as_bytes()[d] == b'.')?;
+        let dot = word_start(src, offset)
+            .checked_sub(1)
+            .filter(|&d| src.as_bytes()[d] == b'.')?;
         let receiver = src[..dot].strip_suffix("this")?;
         if receiver.ends_with(|c: char| c.is_alphanumeric() || c == '_') {
             return None;

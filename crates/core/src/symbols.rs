@@ -24,7 +24,10 @@ pub enum SymbolKind {
 
 impl SymbolKind {
     pub fn is_member(self) -> bool {
-        matches!(self, Self::Method | Self::Property | Self::Field | Self::EnumMember)
+        matches!(
+            self,
+            Self::Method | Self::Property | Self::Field | Self::EnumMember
+        )
     }
 }
 
@@ -81,7 +84,11 @@ pub fn document_symbols(lang: &dyn Analysis, tree: &Tree, src: &str) -> Vec<Symb
     out
 }
 
-pub fn flatten<'s>(symbols: &'s [Symbol], container: Option<&'s str>, out: &mut Vec<(&'s Symbol, Option<&'s str>)>) {
+pub fn flatten<'s>(
+    symbols:   &'s [Symbol],
+    container: Option<&'s str>,
+    out:       &mut Vec<(&'s Symbol, Option<&'s str>)>,
+) {
     for symbol in symbols {
         out.push((symbol, container));
         flatten(&symbol.children, Some(&symbol.name), out);

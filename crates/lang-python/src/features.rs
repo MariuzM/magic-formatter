@@ -107,7 +107,10 @@ fn owner(node: Node) -> Option<Node> {
 }
 
 pub fn enclosing_class(node: Node) -> Option<Node> {
-    owner(node).filter(|b| b.kind() == "block").and_then(|b| b.parent()).filter(|c| c.kind() == "class_definition")
+    owner(node)
+        .filter(|b| b.kind() == "block")
+        .and_then(|b| b.parent())
+        .filter(|c| c.kind() == "class_definition")
 }
 
 fn outer(node: Node) -> Node {
@@ -115,11 +118,16 @@ fn outer(node: Node) -> Node {
 }
 
 fn is_constant(name: &str) -> bool {
-    name.chars().any(|c| c.is_ascii_uppercase()) && name.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+    name.chars().any(|c| c.is_ascii_uppercase())
+        && name
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
 }
 
 fn function_signature(def: Node, src: &str) -> String {
-    let end     = def.child_by_field_name("parameters").map_or(def.end_byte(), |p| p.end_byte());
+    let end = def
+        .child_by_field_name("parameters")
+        .map_or(def.end_byte(), |p| p.end_byte());
     let mut sig = collapse_ws(&src[def.start_byte()..end]);
     if let Some(ret) = def.child_by_field_name("return_type") {
         sig.push_str(" -> ");
@@ -135,7 +143,12 @@ fn parameters(def: Node, src: &str) -> Vec<String> {
     let mut cursor = params.walk();
     let mut out: Vec<String> = params
         .named_children(&mut cursor)
-        .filter(|p| !matches!(p.kind(), "keyword_separator" | "positional_separator" | "comment"))
+        .filter(|p| {
+            !matches!(
+                p.kind(),
+                "keyword_separator" | "positional_separator" | "comment"
+            )
+        })
         .map(|p| collapse_ws(text(p, src)))
         .collect();
     let bound = enclosing_class(def).is_some()
@@ -149,16 +162,26 @@ fn parameters(def: Node, src: &str) -> Vec<String> {
 fn docstring(def: Node, src: &str) -> Option<String> {
     let body       = def.child_by_field_name("body")?;
     let mut cursor = body.walk();
-    let first      = body.named_children(&mut cursor).find(|c| c.kind() != "comment")?;
+    let first = body
+        .named_children(&mut cursor)
+        .find(|c| c.kind() != "comment")?;
     if first.kind() != "expression_statement" || first.named_child_count() != 1 {
         return None;
     }
-    let string           = first.named_child(0).filter(|s| s.kind() == "string")?;
-    let raw              = text(string, src).trim_start_matches(|c: char| c.is_ascii_alphabetic());
-    let quote            = ["\"\"\"", "'''", "\"", "'"].into_iter().find(|q| raw.starts_with(q))?;
+    let string = first.named_child(0).filter(|s| s.kind() == "string")?;
+    let raw    = text(string, src).trim_start_matches(|c: char| c.is_ascii_alphabetic());
+    let quote = ["\"\"\"", "'''", "\"", "'"]
+        .into_iter()
+        .find(|q| raw.starts_with(q))?;
     let inner            = raw.strip_prefix(quote)?.strip_suffix(quote).unwrap_or(raw);
     let lines: Vec<&str> = inner.lines().collect();
-    let indent           = lines.iter().skip(1).filter(|l| !l.trim().is_empty()).map(|l| l.len() - l.trim_start().len()).min().unwrap_or(0);
+    let indent = lines
+        .iter()
+        .skip(1)
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| l.len() - l.trim_start().len())
+        .min()
+        .unwrap_or(0);
     let mut out: Vec<String> = lines
         .iter()
         .enumerate()
@@ -180,7 +203,8 @@ fn docstring(def: Node, src: &str) -> Option<String> {
 }
 
 fn docs(def: Node, src: &str) -> Option<String> {
-    docstring(def, src).or_else(|| comments_before(outer(def), src, &["comment"]).map(|c| escape_markdown(&c)))
+    docstring(def, src)
+        .or_else(|| comments_before(outer(def), src, &["comment"]).map(|c| escape_markdown(&c)))
 }
 
 fn init_parameters(class: Node, src: &str) -> Vec<String> {
@@ -216,21 +240,39 @@ pub fn symbol(node: Node, src: &str) -> Option<SymbolInfo> {
                 Some(_) => SymbolKind::Method,
                 None => SymbolKind::Function,
             };
-            let detail = node.child_by_field_name("parameters").map(|p| collapse_ws(text(p, src)));
+            let detail = node
+                .child_by_field_name("parameters")
+                .map(|p| collapse_ws(text(p, src)));
             Some(info(name, kind, detail))
         }
-        "class_definition" => Some(info(node.child_by_field_name("name")?, SymbolKind::Class, None)),
+        "class_definition" => Some(info(
+            node.child_by_field_name("name")?,
+            SymbolKind::Class,
+            None,
+        )),
         "assignment" => {
-            let stmt  = node.parent().filter(|p| p.kind() == "expression_statement")?;
+            let stmt = node
+                .parent()
+                .filter(|p| p.kind() == "expression_statement")?;
             let scope = stmt.parent()?;
-            let left  = node.child_by_field_name("left").filter(|l| l.kind() == "identifier")?;
-            let kind  = match scope.kind() {
+            let left = node
+                .child_by_field_name("left")
+                .filter(|l| l.kind() == "identifier")?;
+            let kind = match scope.kind() {
                 "module" if is_constant(text(left, src)) => SymbolKind::Constant,
                 "module" => SymbolKind::Variable,
-                "block" if scope.parent().is_some_and(|c| c.kind() == "class_definition") => SymbolKind::Property,
+                "block"
+                    if scope
+                        .parent()
+                        .is_some_and(|c| c.kind() == "class_definition") =>
+                {
+                    SymbolKind::Property
+                }
                 _ => return None,
             };
-            let detail = node.child_by_field_name("type").map(|t| collapse_ws(text(t, src)));
+            let detail = node
+                .child_by_field_name("type")
+                .map(|t| collapse_ws(text(t, src)));
             Some(info(left, kind, detail))
         }
         _ => None,
@@ -251,7 +293,10 @@ pub fn describe(node: Node, src: &str) -> Option<Description> {
             params:    parameters(parent, src),
         }),
         "class_definition" if parent.child_by_field_name("name") == Some(node) => {
-            let end = parent.child_by_field_name("superclasses").unwrap_or(node).end_byte();
+            let end = parent
+                .child_by_field_name("superclasses")
+                .unwrap_or(node)
+                .end_byte();
             Some(Description {
                 signature: collapse_ws(&src[parent.start_byte()..end]),
                 docs:      docs(parent, src),
@@ -260,14 +305,25 @@ pub fn describe(node: Node, src: &str) -> Option<Description> {
         }
         "parameters" | "lambda_parameters" => Some(simple(format!("(parameter) {}", text(node, src)), None)),
         "typed_parameter" | "default_parameter" | "typed_default_parameter" | "list_splat_pattern" | "dictionary_splat_pattern"
-            if parent.parent().is_some_and(|p| matches!(p.kind(), "parameters" | "lambda_parameters" | "typed_parameter")) =>
+            if parent.parent().is_some_and(|p| {
+                matches!(
+                    p.kind(),
+                    "parameters" | "lambda_parameters" | "typed_parameter"
+                )
+            }) =>
         {
-            let param = if parent.parent().is_some_and(|p| p.kind() == "typed_parameter") {
+            let param = if parent
+                .parent()
+                .is_some_and(|p| p.kind() == "typed_parameter")
+            {
                 parent.parent()?
             } else {
                 parent
             };
-            Some(simple(format!("(parameter) {}", collapse_ws(text(param, src))), None))
+            Some(simple(
+                format!("(parameter) {}", collapse_ws(text(param, src))),
+                None,
+            ))
         }
         _ => {
             let assignment = std::iter::successors(Some(node), |n| n.parent())
@@ -278,12 +334,16 @@ pub fn describe(node: Node, src: &str) -> Option<Description> {
                             .is_some_and(|l| l.start_byte() <= node.start_byte() && node.end_byte() <= l.end_byte())
                 });
             if let Some(a) = assignment {
-                let stmt = a.parent().filter(|p| p.kind() == "expression_statement").unwrap_or(a);
+                let stmt = a
+                    .parent()
+                    .filter(|p| p.kind() == "expression_statement")
+                    .unwrap_or(a);
                 let docs = comments_before(stmt, src, &["comment"]).map(|c| escape_markdown(&c));
                 return Some(simple(first_line(text(a, src), 120), docs));
             }
-            let binding =
-                std::iter::successors(Some(node), |n| n.parent()).take_while(|n| !matches!(n.kind(), "block" | "module")).find(|n| {
+            let binding = std::iter::successors(Some(node), |n| n.parent())
+                .take_while(|n| !matches!(n.kind(), "block" | "module"))
+                .find(|n| {
                     matches!(
                         n.kind(),
                         "import_statement"
@@ -300,9 +360,10 @@ pub fn describe(node: Node, src: &str) -> Option<Description> {
                 binding.child_by_field_name(field).is_some_and(|f| f.start_byte() <= node.start_byte() && node.end_byte() <= f.end_byte())
             };
             match binding.kind() {
-                "import_statement" | "import_from_statement" | "global_statement" | "nonlocal_statement" => {
-                    Some(simple(first_line(&collapse_ws(text(binding, src)), 120), None))
-                }
+                "import_statement" | "import_from_statement" | "global_statement" | "nonlocal_statement" => Some(simple(
+                    first_line(&collapse_ws(text(binding, src)), 120),
+                    None,
+                )),
                 "for_statement" | "for_in_clause" if within("left") => Some(simple(format!("(variable) {}", text(node, src)), None)),
                 "named_expression" if within("name") => Some(simple(format!("(variable) {}", text(node, src)), None)),
                 "as_pattern_target" => Some(simple(format!("(variable) {}", text(node, src)), None)),
@@ -369,7 +430,10 @@ pub fn refine(tree: &Tree, src: &str, spans: &mut [Span]) {
     for span in spans.iter().filter(|s| adoptable.contains(&s.kind.ty)) {
         usage.entry(&src[span.start..span.end]).or_insert(span.kind);
     }
-    for span in spans.iter_mut().filter(|s| s.kind.ty == variable && s.kind.mods == 0) {
+    for span in spans
+        .iter_mut()
+        .filter(|s| s.kind.ty == variable && s.kind.mods == 0)
+    {
         let name = &src[span.start..span.end];
         if modules.contains(&name) {
             span.kind.ty = namespace;
@@ -392,7 +456,9 @@ fn members(node: Node, class: Node, src: &str, out: &mut Vec<(String, SymbolKind
                 }
             }
             "attribute" => {
-                let target = child.child_by_field_name("object").is_some_and(|o| text(o, src) == "self");
+                let target = child
+                    .child_by_field_name("object")
+                    .is_some_and(|o| text(o, src) == "self");
                 let stored = node.kind() == "assignment" && node.child_by_field_name("left") == Some(child);
                 if target
                     && stored
@@ -402,7 +468,10 @@ fn members(node: Node, class: Node, src: &str, out: &mut Vec<(String, SymbolKind
                 }
             }
             "assignment" if node.parent().and_then(|b| b.parent()) == Some(class) => {
-                if let Some(left) = child.child_by_field_name("left").filter(|l| l.kind() == "identifier") {
+                if let Some(left) = child
+                    .child_by_field_name("left")
+                    .filter(|l| l.kind() == "identifier")
+                {
                     out.push((text(left, src).to_string(), SymbolKind::Property));
                 }
             }

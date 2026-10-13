@@ -15,12 +15,28 @@ pub fn registrations(selector: &[Value]) -> Vec<Value> {
     let methods = [
         ("hover", "textDocument/hover", json!({})),
         ("documentSymbol", "textDocument/documentSymbol", json!({})),
-        ("documentHighlight", "textDocument/documentHighlight", json!({})),
-        ("rename", "textDocument/rename", json!({ "prepareProvider": true })),
+        (
+            "documentHighlight",
+            "textDocument/documentHighlight",
+            json!({}),
+        ),
+        (
+            "rename",
+            "textDocument/rename",
+            json!({ "prepareProvider": true }),
+        ),
         ("foldingRange", "textDocument/foldingRange", json!({})),
         ("selectionRange", "textDocument/selectionRange", json!({})),
-        ("completion", "textDocument/completion", json!({ "triggerCharacters": ["."] })),
-        ("signatureHelp", "textDocument/signatureHelp", json!({ "triggerCharacters": ["(", ","], "retriggerCharacters": [","] })),
+        (
+            "completion",
+            "textDocument/completion",
+            json!({ "triggerCharacters": ["."] }),
+        ),
+        (
+            "signatureHelp",
+            "textDocument/signatureHelp",
+            json!({ "triggerCharacters": ["(", ","], "retriggerCharacters": [","] }),
+        ),
     ];
     let mut out: Vec<Value> = methods
         .into_iter()
@@ -29,12 +45,17 @@ pub fn registrations(selector: &[Value]) -> Vec<Value> {
             json!({ "id": id, "method": method, "registerOptions": options })
         })
         .collect();
-    out.push(json!({ "id": "workspaceSymbol", "method": "workspace/symbol", "registerOptions": {} }));
+    out.push(
+        json!({ "id": "workspaceSymbol", "method": "workspace/symbol", "registerOptions": {} }),
+    );
     out
 }
 
 pub fn clear_diagnostics(sender: &Sender<Message>, uri: &Uri) {
-    let note = Notification::new("textDocument/publishDiagnostics".into(), json!({ "uri": uri.as_str(), "diagnostics": [] }));
+    let note = Notification::new(
+        "textDocument/publishDiagnostics".into(),
+        json!({ "uri": uri.as_str(), "diagnostics": [] }),
+    );
     sender.send(note.into()).ok();
 }
 
@@ -89,8 +110,13 @@ fn item_json(item: Item) -> Value {
 }
 
 fn symbol_json(symbol: &Symbol, text: &str, lines: &LineIndex) -> Value {
-    let children: Vec<Value> = symbol.children.iter().filter(|c| !c.name.is_empty()).map(|c| symbol_json(c, text, lines)).collect();
-    let mut value            = json!({
+    let children: Vec<Value> = symbol
+        .children
+        .iter()
+        .filter(|c| !c.name.is_empty())
+        .map(|c| symbol_json(c, text, lines))
+        .collect();
+    let mut value = json!({
         "name": symbol.name,
         "kind": symbol.kind as u8,
         "range": to_range(text, lines, symbol.range),
@@ -105,16 +131,19 @@ fn symbol_json(symbol: &Symbol, text: &str, lines: &LineIndex) -> Value {
 
 fn fuzzy(name: &str, query: &str) -> bool {
     let mut chars = name.chars().flat_map(char::to_lowercase);
-    query.chars().flat_map(char::to_lowercase).all(|q| chars.any(|c| c == q))
+    query
+        .chars()
+        .flat_map(char::to_lowercase)
+        .all(|q| chars.any(|c| c == q))
 }
 
 fn describe_at(
-    lang: &'static dyn Language,
+    lang:   &'static dyn Language,
     origin: OpenFile,
-    open: Vec<OpenFile>,
+    open:   Vec<OpenFile>,
     offset: usize,
-    index: &RwLock<Index>,
-    roots: &[PathBuf],
+    index:  &RwLock<Index>,
+    roots:  &[PathBuf],
 ) -> Option<(Description, (usize, usize))> {
     let analysis = lang.analysis()?;
     let tree     = origin.tree.clone().or_else(|| parse(lang, &origin.text))?;
@@ -128,8 +157,10 @@ fn describe_at(
         return None;
     }
     let (uri, text) = (origin.uri.clone(), origin.text.clone());
-    let target      = find_definitions(lang, origin, open, offset, false, index, roots).into_iter().next()?;
-    let start       = target.range.start;
+    let target = find_definitions(lang, origin, open, offset, false, index, roots)
+        .into_iter()
+        .next()?;
+    let start = target.range.start;
     if target.uri != uri && start == target.range.end && start.line == 0 && start.character == 0 {
         let signature = format!("(module) {name}");
         return Some((
@@ -147,7 +178,11 @@ fn describe_at(
         parsed(lang, &uri_to_path(&target.uri)?)?
     };
     let lines = LineIndex::new(&text);
-    let def   = identifier_at(analysis, &tree, lines.offset(&text, start.line, start.character))?;
+    let def   = identifier_at(
+        analysis,
+        &tree,
+        lines.offset(&text, start.line, start.character),
+    )?;
     analysis.describe(def, &text).map(|d| (d, range))
 }
 
@@ -164,13 +199,18 @@ impl Server {
         Some((doc, doc.lang.analysis()?, doc.tree.as_ref()?))
     }
 
-    fn context(&self, params: &Value) -> Option<(&'static dyn Language, usize, OpenFile, Vec<OpenFile>)> {
+    fn context(
+        &self,
+        params: &Value,
+    ) -> Option<(&'static dyn Language, usize, OpenFile, Vec<OpenFile>)> {
         let (lang, offset, origin, open) = self.lookup_context(uri_of(params)?, position_of(params)?)?;
         self.language_server(lang).then_some((lang, offset, origin, open))
     }
 
     pub(super) fn publish_diagnostics(&self, uri: &Uri) {
-        let Some(doc)  = self.docs.get(uri.as_str()) else { return };
+        let Some(doc) = self.docs.get(uri.as_str()) else {
+            return;
+        };
         let enabled    = doc.lang.analysis().is_some_and(|a| a.syntax_diagnostics()) && self.language_server(doc.lang);
         let Some(tree) = doc.tree.as_ref().filter(|_| enabled) else {
             return;
@@ -233,14 +273,25 @@ impl Server {
         let (index, roots) = (self.index.clone(), self.roots.clone());
         let delegate       = self.delegate(lang, "textDocument/signatureHelp", params.clone());
         spawn_delegated(&self.pool, id, delegate, move |_| {
-            let Some(analysis) = lang.analysis() else { return Value::Null };
-            let Some(tree)     = origin.tree.clone() else { return Value::Null };
-            let call           = tree.root_node().descendant_for_byte_range(offset, offset).and_then(|n| analysis.call_at(n, offset));
-            let Some(call)     = call else { return Value::Null };
-            let active         = active_parameter(call.args, offset);
-            let callee         = call.callee.start_byte();
-            let name           = call.callee.utf8_text(origin.text.as_bytes()).unwrap_or_default().to_string();
-            let Some((d, _))   = describe_at(lang, origin, open, callee, &index, &roots) else {
+            let Some(analysis) = lang.analysis() else {
+                return Value::Null;
+            };
+            let Some(tree) = origin.tree.clone() else {
+                return Value::Null;
+            };
+            let call = tree
+                .root_node()
+                .descendant_for_byte_range(offset, offset)
+                .and_then(|n| analysis.call_at(n, offset));
+            let Some(call) = call else { return Value::Null };
+            let active     = active_parameter(call.args, offset);
+            let callee     = call.callee.start_byte();
+            let name = call
+                .callee
+                .utf8_text(origin.text.as_bytes())
+                .unwrap_or_default()
+                .to_string();
+            let Some((d, _)) = describe_at(lang, origin, open, callee, &index, &roots) else {
                 return Value::Null;
             };
             let mut label      = format!("{name}(");
@@ -265,15 +316,23 @@ impl Server {
     fn document_symbol(&self, id: RequestId, params: &Value) {
         let result = self.doc(params).map(|(doc, analysis, tree)| {
             let symbols = document_symbols(analysis, tree, &doc.text);
-            symbols.iter().filter(|s| !s.name.is_empty()).map(|s| symbol_json(s, &doc.text, &doc.lines)).collect::<Vec<_>>()
+            symbols
+                .iter()
+                .filter(|s| !s.name.is_empty())
+                .map(|s| symbol_json(s, &doc.text, &doc.lines))
+                .collect::<Vec<_>>()
         });
         respond(&self.sender, id, json!(result));
     }
 
     fn workspace_symbol(&self, id: RequestId, params: &Value) {
-        let query                     = params["query"].as_str().unwrap_or_default().to_string();
-        let index                     = self.index.clone();
-        let wanted: Vec<&'static str> = LANGUAGES.iter().filter(|l| self.language_server(**l)).map(|l| l.id()).collect();
+        let query = params["query"].as_str().unwrap_or_default().to_string();
+        let index = self.index.clone();
+        let wanted: Vec<&'static str> = LANGUAGES
+            .iter()
+            .filter(|l| self.language_server(**l))
+            .map(|l| l.id())
+            .collect();
         spawn_request(&self.pool, id, move |_| {
             let index = index.read().unwrap();
             let hits: Vec<Value> = index
@@ -329,10 +388,17 @@ impl Server {
 
     fn rename(&self, id: RequestId, params: &Value) {
         let new_name = params["newName"].as_str().unwrap_or_default().to_string();
-        let valid = new_name.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_')
+        let valid = new_name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_alphabetic() || c == '_')
             && new_name.chars().all(|c| c.is_alphanumeric() || c == '_');
         if !valid {
-            let resp = Response::new_err(id, ErrorCode::InvalidParams as i32, format!("`{new_name}` is not a valid identifier"));
+            let resp = Response::new_err(
+                id,
+                ErrorCode::InvalidParams as i32,
+                format!("`{new_name}` is not a valid identifier"),
+            );
             self.sender.send(resp.into()).ok();
             return;
         }
@@ -343,7 +409,10 @@ impl Server {
         spawn_request(&self.pool, id, move |_| {
             let mut changes: HashMap<String, Vec<Value>> = HashMap::new();
             for loc in find_references(lang, origin, open, offset, true, &index) {
-                changes.entry(loc.uri.as_str().to_string()).or_default().push(json!({ "range": loc.range, "newText": new_name }));
+                changes
+                    .entry(loc.uri.as_str().to_string())
+                    .or_default()
+                    .push(json!({ "range": loc.range, "newText": new_name }));
             }
             json!({ "changes": changes })
         });
@@ -396,32 +465,53 @@ impl Server {
         let (index, roots) = (self.index.clone(), self.roots.clone());
         let delegate       = self.delegate(lang, "textDocument/completion", params.clone());
         spawn_delegated(&self.pool, id, delegate, move |_| {
-            let Some(analysis) = lang.analysis() else { return Value::Null };
-            let Some(tree)     = origin.tree.clone().or_else(|| parse(lang, &origin.text)) else {
+            let Some(analysis) = lang.analysis() else {
+                return Value::Null;
+            };
+            let Some(tree) = origin.tree.clone().or_else(|| parse(lang, &origin.text)) else {
                 return Value::Null;
             };
             let text  = &origin.text;
             let items = if is_member_access(text, offset) {
                 match analysis.member_completions(&tree, text, offset, &origin.path, &roots) {
-                    Some(list) if !list.is_empty() => list
-                        .into_iter()
-                        .map(|(label, kind)| Item {
-                            label,
-                            kind: ItemKind::Symbol(kind),
-                            detail: None,
-                        })
-                        .collect(),
-                    _ => completion::members(analysis, &tree, text, offset, workspace_items(&index, lang, true, &origin.path)),
+                    Some(list) if !list.is_empty() => {
+                        list
+                            .into_iter()
+                            .map(|(label, kind)| Item {
+                                label,
+                                kind: ItemKind::Symbol(kind),
+                                detail: None,
+                            })
+                            .collect()
+                    }
+                    _ => completion::members(
+                        analysis,
+                        &tree,
+                        text,
+                        offset,
+                        workspace_items(&index, lang, true, &origin.path),
+                    ),
                 }
             } else {
-                completion::complete(analysis, &tree, text, offset, workspace_items(&index, lang, false, &origin.path))
+                completion::complete(
+                    analysis,
+                    &tree,
+                    text,
+                    offset,
+                    workspace_items(&index, lang, false, &origin.path),
+                )
             };
             json!({ "isIncomplete": false, "items": items.into_iter().map(item_json).collect::<Vec<_>>() })
         });
     }
 }
 
-fn workspace_items(index: &RwLock<Index>, lang: &dyn Language, members: bool, exclude: &Path) -> Vec<Item> {
+fn workspace_items(
+    index:   &RwLock<Index>,
+    lang:    &dyn Language,
+    members: bool,
+    exclude: &Path,
+) -> Vec<Item> {
     let index = index.read().unwrap();
     index
         .outline()

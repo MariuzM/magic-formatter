@@ -20,8 +20,14 @@ impl Analysis for Toml {
     }
 
     fn highlighter(&self) -> &Highlighter {
-        self.highlighter
-            .get_or_init(|| Highlighter::new(&self.grammar(), include_str!("../queries/highlights.scm"), Precedence::FirstWins, &[]))
+        self.highlighter.get_or_init(|| {
+            Highlighter::new(
+                &self.grammar(),
+                include_str!("../queries/highlights.scm"),
+                Precedence::FirstWins,
+                &[],
+            )
+        })
     }
 
     fn identifier_kinds(&self) -> &'static [&'static str] {
@@ -32,7 +38,13 @@ impl Analysis for Toml {
         &[]
     }
 
-    fn collect_definitions<'t>(&self, _node: Node<'t>, _src: &[u8], _out: &mut Vec<(Node<'t>, usize)>) {}
+    fn collect_definitions<'t>(
+        &self,
+        _node: Node<'t>,
+        _src:  &[u8],
+        _out:  &mut Vec<(Node<'t>, usize)>,
+    ) {
+    }
 
     fn resolves_locally(&self, _node: Node, _parent: Option<Node>) -> bool {
         false

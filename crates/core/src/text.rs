@@ -8,7 +8,9 @@ pub struct LineIndex {
 impl LineIndex {
     pub fn new(text: &str) -> Self {
         let mut starts = vec![0];
-        starts.extend(text.bytes().enumerate().filter(|&(_, b)| b == b'\n').map(|(i, _)| i + 1));
+        starts.extend(
+            text.bytes().enumerate().filter(|&(_, b)| b == b'\n').map(|(i, _)| i + 1),
+        );
         Self { starts }
     }
 
@@ -19,7 +21,11 @@ impl LineIndex {
         for s in &mut self.starts[last..] {
             *s = *s - added + inserted.len();
         }
-        let lines = inserted.bytes().enumerate().filter(|&(_, b)| b == b'\n').map(|(i, _)| start + i + 1);
+        let lines = inserted
+            .bytes()
+            .enumerate()
+            .filter(|&(_, b)| b == b'\n')
+            .map(|(i, _)| start + i + 1);
         self.starts.splice(first..last, lines);
     }
 

@@ -61,11 +61,17 @@ pub struct Highlighter {
 }
 
 fn ty(name: &str) -> u32 {
-    TOKEN_TYPES.iter().position(|t| *t == name).expect("known token type") as u32
+    TOKEN_TYPES
+        .iter()
+        .position(|t| *t == name)
+        .expect("known token type") as u32
 }
 
 fn modifier(name: &str) -> u32 {
-    1 << TOKEN_MODIFIERS.iter().position(|m| *m == name).expect("known token modifier")
+    1 << TOKEN_MODIFIERS
+        .iter()
+        .position(|m| *m == name)
+        .expect("known token modifier")
 }
 
 fn kind(t: &str) -> Option<Kind> {
@@ -125,19 +131,21 @@ fn classify(capture: &str) -> Option<Kind> {
 
 impl Highlighter {
     pub fn new(
-        language: &tree_sitter::Language,
-        source: &str,
+        language:   &tree_sitter::Language,
+        source:     &str,
         precedence: Precedence,
-        overrides: &[(&str, &str)],
+        overrides:  &[(&str, &str)],
     ) -> Self {
         let query = Query::new(language, source).expect("valid highlights query");
         let kinds = query
             .capture_names()
             .iter()
-            .map(|name| match overrides.iter().find(|(from, _)| from == name) {
-                Some((_, to)) => kind(to),
-                None => classify(name),
-            })
+            .map(
+                |name| match overrides.iter().find(|(from, _)| from == name) {
+                    Some((_, to)) => kind(to),
+                    None => classify(name),
+                },
+            )
             .collect();
         Self { query, kinds, precedence }
     }
@@ -150,7 +158,12 @@ impl Highlighter {
             let c = m.captures()[*i];
             let n = c.node;
             if n.start_byte() < n.end_byte() {
-                raw.push((n.start_byte(), n.end_byte(), m.pattern_index, self.kinds[c.index as usize]));
+                raw.push((
+                    n.start_byte(),
+                    n.end_byte(),
+                    m.pattern_index,
+                    self.kinds[c.index as usize],
+                ));
             }
         }
         raw.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)).then(a.2.cmp(&b.2)));
@@ -215,7 +228,13 @@ pub fn token_type(name: &str) -> u32 {
     ty(name)
 }
 
-pub fn refine_locals(lang: &dyn Analysis, tree: &Tree, src: &str, spans: &mut [Span], locals: &Locals) {
+pub fn refine_locals(
+    lang:   &dyn Analysis,
+    tree:   &Tree,
+    src:    &str,
+    spans:  &mut [Span],
+    locals: &Locals,
+) {
     let (variable, parameter, function) = (ty("variable"), ty("parameter"), ty("function"));
     let kinds                           = lang.identifier_kinds();
     let mut cursor                      = SpanCursor::new(tree);
@@ -231,7 +250,10 @@ pub fn refine_locals(lang: &dyn Analysis, tree: &Tree, src: &str, spans: &mut [S
         if !lang.resolves_locally(node, cursor.parent()) {
             continue;
         }
-        let Some(def) = locals.resolve(&src[span.start..span.end], span.start).filter(|d| d.start != span.start) else {
+        let Some(def) = locals
+            .resolve(&src[span.start..span.end], span.start)
+            .filter(|d| d.start != span.start)
+        else {
             continue;
         };
         if let Ok(j) = spans.binary_search_by_key(&def.start, |s| s.start)
@@ -285,12 +307,12 @@ pub fn encode(spans: &[Span], src: &str, lines: &LineIndex) -> Vec<u32> {
                     col_utf16 = 0;
                 }
                 col_utf16 += utf16_len(&src[col_byte..start]);
-                col_byte   = start;
-                let col    = col_utf16 as u32;
-                let len    = utf16_len(piece) as u32;
-                let l   = line as u32;
-                let dl  = l - prev_line;
-                let dc  = if dl == 0 { col - prev_col } else { col };
+                col_byte = start;
+                let col  = col_utf16 as u32;
+                let len  = utf16_len(piece) as u32;
+                let l    = line as u32;
+                let dl   = l - prev_line;
+                let dc   = if dl == 0 { col - prev_col } else { col };
                 data.extend_from_slice(&[dl, dc, len, span.kind.ty, span.kind.mods]);
                 prev_line = l;
                 prev_col  = col;

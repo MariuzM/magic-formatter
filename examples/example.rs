@@ -43,7 +43,9 @@ fn method_chain_expands() -> u16 {
 }
 
 fn method_chain_stays_inline() -> Option<u16> {
-    std::env::var("PORT").ok().and_then(|p| p.parse::<u16>().ok())
+    std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse::<u16>().ok())
 }
 
 fn aligned_assignments(config: &mut Config) -> u32 {

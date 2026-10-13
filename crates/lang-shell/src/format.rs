@@ -4,7 +4,13 @@ pub struct Options {
     pub indent: String,
 }
 
-const ATOMIC: &[&str] = &["string", "raw_string", "ansi_c_string", "translated_string", "heredoc_body"];
+const ATOMIC: &[&str] = &[
+    "string",
+    "raw_string",
+    "ansi_c_string",
+    "translated_string",
+    "heredoc_body",
+];
 
 const HEREDOC: &[&str] = &["heredoc_body", "heredoc_end"];
 
@@ -32,8 +38,12 @@ fn error_count(tree: &Tree) -> usize {
 
 fn parse(src: &str) -> Result<Tree, String> {
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_bash::LANGUAGE.into()).map_err(|e| e.to_string())?;
-    parser.parse(src, None).ok_or_else(|| "parser failed".into())
+    parser
+        .set_language(&tree_sitter_bash::LANGUAGE.into())
+        .map_err(|e| e.to_string())?;
+    parser
+        .parse(src, None)
+        .ok_or_else(|| "parser failed".into())
 }
 
 fn verbatim_spans(tree: &Tree, src: &str) -> Vec<(usize, usize)> {
@@ -44,7 +54,10 @@ fn verbatim_spans(tree: &Tree, src: &str) -> Vec<(usize, usize)> {
         let kind = node.kind();
         let atom = ATOMIC.contains(&kind);
         if HEREDOC.contains(&kind) {
-            out.push(((node.start_byte() - node.start_position().column).saturating_sub(1), node.end_byte()));
+            out.push((
+                (node.start_byte() - node.start_position().column).saturating_sub(1),
+                node.end_byte(),
+            ));
         } else if (atom || node.child_count() == 0) && src[node.start_byte()..node.end_byte()].contains('\n') {
             out.push((node.start_byte(), node.end_byte()));
         }
@@ -105,7 +118,11 @@ fn mask_expansion_flags(bytes: &mut [u8]) {
             i += 1;
             continue;
         }
-        let Some(len) = bytes[i + 3..].iter().take(40).position(|&b| b == b')' || b == b'\n') else {
+        let Some(len) = bytes[i + 3..]
+            .iter()
+            .take(40)
+            .position(|&b| b == b')' || b == b'\n')
+        else {
             i += 1;
             continue;
         };
@@ -154,7 +171,10 @@ fn mask_glob_qualifiers(bytes: &mut [u8]) {
     while i < bytes.len() {
         let attached = !bytes[i - 1].is_ascii_whitespace() && !b"$=()|&;<>!`".contains(&bytes[i - 1]);
         if bytes[i] == b'(' && attached {
-            let body = bytes[i + 1..].iter().take_while(|&&b| b.is_ascii_alphanumeric() || b"[],.:^-/@+".contains(&b)).count();
+            let body = bytes[i + 1..]
+                .iter()
+                .take_while(|&&b| b.is_ascii_alphanumeric() || b"[],.:^-/@+".contains(&b))
+                .count();
             let end  = i + 1 + body;
             let next = bytes.get(end + 1).copied().unwrap_or(b' ');
             if body > 0 && bytes.get(end) == Some(&b')') && !(next.is_ascii_alphanumeric() || next == b'_') {

@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-const MARK: &str          = concat!("// __magic_", "formatter__");
+const MARK:     &str      = concat!("// __magic_", "formatter__");
 const KEYWORDS: [&str; 6] = ["if", "while", "for", "match", "loop", "else"];
 
 static NO_NIGHTLY: AtomicBool = AtomicBool::new(false);
@@ -80,12 +80,18 @@ fn find_edition(start: &Path) -> String {
         let manifest = dir.join("Cargo.toml");
         if let Ok(text) = fs::read_to_string(&manifest) {
             for line in text.lines() {
-                let t              = line.trim_start();
-                let Some(rest)     = t.strip_prefix("edition") else { continue };
-                let rest           = rest.trim_start();
-                let Some(rest)     = rest.strip_prefix('=') else { continue };
-                let rest           = rest.trim_start();
-                let Some(rest)     = rest.strip_prefix('"') else { continue };
+                let t          = line.trim_start();
+                let Some(rest) = t.strip_prefix("edition") else {
+                    continue;
+                };
+                let rest       = rest.trim_start();
+                let Some(rest) = rest.strip_prefix('=') else {
+                    continue;
+                };
+                let rest       = rest.trim_start();
+                let Some(rest) = rest.strip_prefix('"') else {
+                    continue;
+                };
                 let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
                 if digits.len() == 4 && rest[digits.len()..].starts_with('"') {
                     return digits;
@@ -143,7 +149,7 @@ fn find_insert_points(s: &[char]) -> Vec<usize> {
     let n                      = s.len();
     let mut i                  = 0;
     let mut line               = 0;
-    let mut stack: Vec<Frame>  = Vec::new();
+    let mut stack:  Vec<Frame> = Vec::new();
     let mut points: Vec<usize> = Vec::new();
 
     while i < n {
@@ -254,7 +260,9 @@ fn is_chain_dot(s: &[char], i: usize) -> bool {
     if s.get(i).copied() != Some('.') || s.get(i + 1).copied() == Some('.') || i > 0 && s[i - 1] == '.' {
         return false;
     }
-    let Some(next) = s.get(i + 1).copied() else { return false };
+    let Some(next) = s.get(i + 1).copied() else {
+        return false;
+    };
     if !(next == '_' || next.is_alphanumeric()) {
         return false;
     }
@@ -371,8 +379,10 @@ fn find_chain_insert_points(s: &[char]) -> Vec<usize> {
             continue;
         }
         if is_chain_dot(s, i) {
-            let frame     = stack.last_mut().unwrap();
-            let multiline = *frame.multiline.get_or_insert_with(|| frame.last_token_line.is_some_and(|l| line > l));
+            let frame = stack.last_mut().unwrap();
+            let multiline = *frame
+                .multiline
+                .get_or_insert_with(|| frame.last_token_line.is_some_and(|l| line > l));
             if multiline {
                 points.push(i);
             }
@@ -386,7 +396,12 @@ fn find_chain_insert_points(s: &[char]) -> Vec<usize> {
             i += 2;
             continue;
         }
-        if c == '.' || matches!(c, ',' | ';' | ':' | '=' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' | '!' | '<' | '>') {
+        if c == '.'
+            || matches!(
+                c,
+                ',' | ';' | ':' | '=' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' | '!' | '<' | '>'
+            )
+        {
             frame.multiline = None;
         }
         frame.last_token_line = Some(line);
@@ -413,8 +428,11 @@ fn add_chain_marks(src: &str) -> String {
             prev = end;
             continue;
         }
-        let line_start     = s[..p].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
-        let indent: String = s[line_start..].iter().take_while(|c| matches!(c, ' ' | '\t')).collect();
+        let line_start = s[..p].iter().rposition(|&c| c == '\n').map_or(0, |i| i + 1);
+        let indent: String = s[line_start..]
+            .iter()
+            .take_while(|c| matches!(c, ' ' | '\t'))
+            .collect();
         out.extend(&s[prev..p]);
         out.push(' ');
         out.push_str(MARK);
@@ -481,20 +499,22 @@ struct LineRec {
     end:         usize,
     start_depth: i32,
     eq:          Option<usize>,
+    colon:       Option<usize>,
     dirty:       bool,
 }
 
 #[allow(unused_assignments)]
 fn line_records(s: &[char]) -> Vec<LineRec> {
-    let n                      = s.len();
-    let mut i                  = 0;
-    let mut depth: i32         = 0;
-    let mut recs: Vec<LineRec> = Vec::new();
-    let mut rec                = LineRec {
+    let n                       = s.len();
+    let mut i                   = 0;
+    let mut depth: i32          = 0;
+    let mut recs:  Vec<LineRec> = Vec::new();
+    let mut rec                 = LineRec {
         start:       0,
         end:         0,
         start_depth: 0,
         eq:          None,
+        colon:       None,
         dirty:       false,
     };
 
@@ -507,6 +527,7 @@ fn line_records(s: &[char]) -> Vec<LineRec> {
                 end:         $pos + 1,
                 start_depth: depth,
                 eq:          None,
+                colon:       None,
                 dirty:       false,
             };
         }};
@@ -588,6 +609,15 @@ fn line_records(s: &[char]) -> Vec<LineRec> {
             && s.get(i + 1).map_or(true, |&x| x != '=' && x != '>')
         {
             rec.eq = Some(i);
+        } else if c == ':'
+            && rec.colon.is_none()
+            && rec.eq.is_none()
+            && depth == rec.start_depth
+            && !rec.dirty
+            && (i == 0 || s[i - 1] != ':')
+            && s.get(i + 1) != Some(&':')
+        {
+            rec.colon = Some(i);
         }
         i += 1;
     }
@@ -655,11 +685,14 @@ fn join_inline_ifs(txt: &str, sigs: &[String]) -> String {
     if sigs.is_empty() {
         return txt.to_string();
     }
-    let s: Vec<char>           = txt.chars().collect();
-    let recs                   = line_records(&s);
-    let src_lines: Vec<String> = recs.iter().map(|r| s[r.start..r.end].iter().collect()).collect();
-    let mut out: Vec<String>   = Vec::new();
-    let mut i                  = 0;
+    let s: Vec<char> = txt.chars().collect();
+    let recs         = line_records(&s);
+    let src_lines: Vec<String> = recs
+        .iter()
+        .map(|r| s[r.start..r.end].iter().collect())
+        .collect();
+    let mut out: Vec<String> = Vec::new();
+    let mut i                = 0;
     while i < recs.len() {
         let line = &src_lines[i];
         let t    = line.trim();
@@ -685,7 +718,10 @@ fn join_inline_ifs(txt: &str, sigs: &[String]) -> String {
                 if ok && net == 0 {
                     let joined = parts.join(" ");
                     if sigs.contains(&signature(&joined)) {
-                        let indent: String = line.chars().take_while(|c| matches!(c, ' ' | '\t')).collect();
+                        let indent: String = line
+                            .chars()
+                            .take_while(|c| matches!(c, ' ' | '\t'))
+                            .collect();
                         out.push(format!("{indent}{joined}"));
                         i = k;
                         continue;
@@ -699,14 +735,180 @@ fn join_inline_ifs(txt: &str, sigs: &[String]) -> String {
     out.join("\n")
 }
 
+fn indent_of(line: &str) -> String {
+    line.chars().take_while(|c| matches!(c, ' ' | '\t')).collect()
+}
+
+fn strip_vis(t: &str) -> &str {
+    match t.strip_prefix("pub") {
+        Some(rest) if rest.starts_with(' ') => rest.trim_start(),
+        Some(rest) if rest.starts_with('(') => rest
+            .find(')')
+            .map_or(t, |close| rest[close + 1..].trim_start()),
+        _ => t,
+    }
+}
+
+fn is_ident(t: &str) -> bool {
+    let t = t.strip_prefix("r#").unwrap_or(t);
+    t.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_') && t.chars().all(|c| c.is_alphanumeric() || c == '_')
+}
+
+fn is_binding(t: &str) -> bool {
+    is_ident(t.strip_prefix("mut ").unwrap_or(t))
+}
+
+fn is_fn_header(t: &str) -> bool {
+    let head             = t.split('(').next().unwrap_or_default();
+    let words: Vec<&str> = head.split_whitespace().collect();
+    words
+        .iter()
+        .position(|w| *w == "fn")
+        .is_some_and(|f| words[..f].iter().all(|w| matches!(*w, "const" | "async" | "unsafe" | "extern" | "default") || w.starts_with('"')))
+}
+
+fn opener(recs: &[LineRec], idx: usize) -> Option<usize> {
+    (0..idx)
+        .rev()
+        .find(|&j| recs[j].start_depth < recs[idx].start_depth)
+}
+
+fn header<'a>(recs: &[LineRec], lines: &'a [String], j: usize) -> &'a str {
+    let mut k = j;
+    if lines[j].trim() == "{" {
+        while k > 0 && recs[k - 1].start_depth == recs[j].start_depth {
+            k -= 1;
+            let t = lines[k].trim();
+            if t != "where" && !t.ends_with(',') {
+                break;
+            }
+        }
+    }
+    strip_vis(lines[k].trim())
+}
+
+fn in_record(recs: &[LineRec], lines: &[String], idx: usize) -> bool {
+    let Some(j) = opener(recs, idx) else {
+        return false;
+    };
+    let t = lines[j].trim();
+    let h = header(recs, lines, j);
+    if t.ends_with('(') {
+        return is_fn_header(h);
+    }
+    if !t.ends_with('{') {
+        return false;
+    }
+    if h.starts_with("struct ") || h.starts_with("union ") {
+        return true;
+    }
+    is_ident(t.trim_end_matches('{').trim()) && opener(recs, j).is_some_and(|e| header(recs, lines, e).starts_with("enum "))
+}
+
+fn type_slot(recs: &[LineRec], lines: &[String], idx: usize) -> Option<Option<usize>> {
+    let rec = &recs[idx];
+    let t   = lines[idx].trim();
+    if t.starts_with("//") || t.starts_with("#[") && t.ends_with(']') {
+        return Some(None);
+    }
+    if rec.dirty || t.is_empty() {
+        return None;
+    }
+    let colon        = rec.colon.map(|c| c - rec.start);
+    let name: String = colon.map_or(String::new(), |c| {
+        lines[idx]
+            .chars()
+            .take(c)
+            .collect::<String>()
+            .trim()
+            .to_string()
+    });
+    let decl = strip_vis(t);
+    if decl.starts_with("let ") {
+        if !t.ends_with(';') {
+            return None;
+        }
+        return Some(colon.filter(|_| name.strip_prefix("let ").is_some_and(is_binding)));
+    }
+    if decl.starts_with("const ") || decl.starts_with("static ") {
+        let n = strip_vis(&name);
+        let n = n
+            .strip_prefix("const ")
+            .or_else(|| n.strip_prefix("static "));
+        return (t.ends_with(';') && n.is_some_and(is_binding)).then_some(colon);
+    }
+    if t.ends_with(',') && in_record(recs, lines, idx) {
+        return match colon {
+            Some(_) if is_binding(strip_vis(&name)) => Some(colon),
+            None if t.trim_end_matches(',').ends_with("self") => Some(None),
+            _ => None,
+        };
+    }
+    None
+}
+
+fn align_types(txt: &str) -> String {
+    let s: Vec<char> = txt.chars().collect();
+    let recs         = line_records(&s);
+    let mut lines: Vec<String> = recs
+        .iter()
+        .map(|r| s[r.start..r.end].iter().collect())
+        .collect();
+    let slots: Vec<Option<Option<usize>>> = (0..recs.len())
+        .map(|idx| type_slot(&recs, &lines, idx))
+        .collect();
+    let mut idx = 0;
+    while idx < recs.len() {
+        let indent  = indent_of(&lines[idx]);
+        let mut end = idx;
+        while slots[idx].is_some() && end + 1 < recs.len() && slots[end + 1].is_some() && indent_of(&lines[end + 1]) == indent {
+            end += 1;
+        }
+        let colons: Vec<(usize, usize)> = (idx..=end)
+            .filter_map(|l| slots[l].flatten().map(|c| (l, c)))
+            .collect();
+        if colons.len() > 1 {
+            let widths: Vec<usize> = colons
+                .iter()
+                .map(|&(l, c)| {
+                    lines[l]
+                        .chars()
+                        .take(c)
+                        .collect::<String>()
+                        .trim_end()
+                        .chars()
+                        .count()
+                })
+                .collect();
+            let target = widths.iter().max().unwrap() + 1;
+            for (&(l, c), w) in colons.iter().zip(widths) {
+                let chars: Vec<char> = lines[l].chars().collect();
+                let head:  String    = chars[..c].iter().collect();
+                let tail:  String    = chars[c + 1..].iter().collect();
+                lines[l]             = format!(
+                    "{}:{}{}",
+                    head.trim_end(),
+                    " ".repeat(target - w),
+                    tail.trim_start()
+                );
+            }
+        }
+        idx = end + 1;
+    }
+    lines.join("\n")
+}
+
 #[allow(unused_assignments)]
 fn align_assignments(txt: &str) -> String {
-    let s: Vec<char>                   = txt.chars().collect();
-    let recs                           = line_records(&s);
-    let mut lines: Vec<String>         = recs.iter().map(|r| s[r.start..r.end].iter().collect()).collect();
-    let mut groups: Vec<Vec<usize>>    = Vec::new();
-    let mut cur: Vec<usize>            = Vec::new();
-    let mut cur_indent: Option<String> = None;
+    let s: Vec<char> = txt.chars().collect();
+    let recs         = line_records(&s);
+    let mut lines: Vec<String> = recs
+        .iter()
+        .map(|r| s[r.start..r.end].iter().collect())
+        .collect();
+    let mut groups:     Vec<Vec<usize>> = Vec::new();
+    let mut cur:        Vec<usize>      = Vec::new();
+    let mut cur_indent: Option<String>  = None;
 
     macro_rules! flush {
         () => {{
@@ -724,13 +926,16 @@ fn align_assignments(txt: &str) -> String {
         let eligible = rec.eq.is_some()
             && !rec.dirty
             && rec.eq.map_or(false, |eq| {
-                let after: String   = s[eq + 1..rec.end].iter().collect();
+                let after:   String = s[eq + 1..rec.end].iter().collect();
                 let from_eq: String = s[eq..rec.end].iter().collect();
                 !after.trim().is_empty() && (from_eq.contains(';') || after.trim_end().ends_with(['{', '(', '[']))
             })
             && !KEYWORDS.contains(&first_word(line).as_str());
         if eligible {
-            let indent: String = line.chars().take_while(|c| matches!(c, ' ' | '\t')).collect();
+            let indent: String = line
+                .chars()
+                .take_while(|c| matches!(c, ' ' | '\t'))
+                .collect();
             if cur_indent.is_some() && cur_indent.as_deref() != Some(indent.as_str()) {
                 flush!();
             }
@@ -753,13 +958,13 @@ fn align_assignments(txt: &str) -> String {
             .collect();
         let target = widths.iter().max().unwrap() + 1;
         for (&idx, &w) in group.iter().zip(widths.iter()) {
-            let eq               = recs[idx].eq.unwrap();
-            let eq_offset        = eq - recs[idx].start;
-            let line             = &lines[idx];
-            let chars: Vec<char> = line.chars().collect();
-            let prefix: String   = chars[..eq_offset].iter().collect();
-            let rest: String     = chars[eq_offset..].iter().collect();
-            lines[idx]           = format!("{}{}{}", prefix.trim_end(), " ".repeat(target - w), rest);
+            let eq                = recs[idx].eq.unwrap();
+            let eq_offset         = eq - recs[idx].start;
+            let line              = &lines[idx];
+            let chars:  Vec<char> = line.chars().collect();
+            let prefix: String    = chars[..eq_offset].iter().collect();
+            let rest:   String    = chars[eq_offset..].iter().collect();
+            lines[idx]            = format!("{}{}{}", prefix.trim_end(), " ".repeat(target - w), rest);
         }
     }
     lines.join("\n")
@@ -767,7 +972,10 @@ fn align_assignments(txt: &str) -> String {
 
 fn cargo_bin(name: &str) -> Option<PathBuf> {
     let exe = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
-    let p   = PathBuf::from(env::var_os("HOME").or_else(|| env::var_os("USERPROFILE"))?).join(".cargo").join("bin").join(exe);
+    let p = PathBuf::from(env::var_os("HOME").or_else(|| env::var_os("USERPROFILE"))?)
+        .join(".cargo")
+        .join("bin")
+        .join(exe);
     p.exists().then_some(p)
 }
 
@@ -800,14 +1008,37 @@ fn run(binary: &Path, args: &[&str], input: &str, cwd: &Path) -> Result<String, 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+fn rustfmt_config(start: &Path) -> Option<PathBuf> {
+    const NAMES: [&str; 2] = ["rustfmt.toml", ".rustfmt.toml"];
+    if start.ancestors().any(|d| NAMES.iter().any(|n| d.join(n).is_file())) {
+        return None;
+    }
+    let home     = PathBuf::from(env::var_os("HOME").or_else(|| env::var_os("USERPROFILE"))?);
+    let config   = env::var_os("XDG_CONFIG_HOME").map_or_else(|| home.join(".config"), PathBuf::from);
+    let mut dirs = vec![
+        home.clone(),
+        config.join("rustfmt"),
+        home.join("Library").join("Application Support").join("rustfmt"),
+    ];
+    if let Some(appdata) = env::var_os("APPDATA") {
+        dirs.push(PathBuf::from(appdata).join("rustfmt"));
+    }
+    dirs.iter().flat_map(|d| NAMES.iter().map(move |n| d.join(n))).find(|p| p.is_file())
+}
+
 fn run_rustfmt(binary: &Path, edition: &str, input: &str, cwd: &Path) -> Result<String, String> {
+    let config   = rustfmt_config(cwd).map(|p| p.to_string_lossy().into_owned());
+    let mut args = vec!["--edition", edition];
+    if let Some(c) = &config {
+        args.extend(["--config-path", c]);
+    }
     if !NO_NIGHTLY.load(Ordering::Relaxed) {
-        match run(binary, &["+nightly", "--edition", edition], input, cwd) {
+        match run(binary, &[&["+nightly"], &args[..]].concat(), input, cwd) {
             Err(e) if e.contains("`+nightly`") || e.contains("toolchain 'nightly") => NO_NIGHTLY.store(true, Ordering::Relaxed),
             res => return res,
         }
     }
-    run(binary, &["--edition", edition], input, cwd)
+    run(binary, &args, input, cwd)
 }
 
 pub fn format(src: &str, dir: &Path, rustfmt: Option<&Path>) -> Result<String, String> {
@@ -815,16 +1046,25 @@ pub fn format(src: &str, dir: &Path, rustfmt: Option<&Path>) -> Result<String, S
     let marked    = add_marks(&add_chain_marks(src));
     let edition   = find_edition(dir);
     let formatted = run_rustfmt(&rustfmt_path(rustfmt), &edition, &marked, dir)?;
-    Ok(align_assignments(&join_inline_ifs(&strip_marks(&formatted), &sigs)))
+    Ok(align_assignments(&align_types(&join_inline_ifs(
+        &strip_marks(&formatted),
+        &sigs,
+    ))))
 }
 
 fn find_up(start: &Path, name: &str) -> Option<PathBuf> {
-    start.ancestors().find(|d| d.join(name).exists()).map(Path::to_path_buf)
+    start
+        .ancestors()
+        .find(|d| d.join(name).exists())
+        .map(Path::to_path_buf)
 }
 
 pub fn topcoat(src: &str, dir: &Path, topcoat: Option<&Path>) -> Option<Result<String, String>> {
-    let root   = find_up(dir, "Topcoat.toml")?;
-    let binary = topcoat.map(Path::to_path_buf).or_else(|| cargo_bin("topcoat")).unwrap_or_else(|| PathBuf::from("topcoat"));
+    let root = find_up(dir, "Topcoat.toml")?;
+    let binary = topcoat
+        .map(Path::to_path_buf)
+        .or_else(|| cargo_bin("topcoat"))
+        .unwrap_or_else(|| PathBuf::from("topcoat"));
     Some(run(&binary, &["fmt", "--stdin"], src, &root))
 }
 
@@ -861,7 +1101,10 @@ mod tests {
     fn marks_inline_suffixes_after_a_multiline_chain_trigger() {
         let src = "let value = input\n    .parse::<Option<Result<u16, E>>>().ok();";
 
-        assert_eq!(marked_chain_lines(src), [".parse::<Option<Result<u16, E>>>().ok();", ".ok();"]);
+        assert_eq!(
+            marked_chain_lines(src),
+            [".parse::<Option<Result<u16, E>>>().ok();", ".ok();"]
+        );
     }
 
     #[test]

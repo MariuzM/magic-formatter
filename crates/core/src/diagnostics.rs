@@ -7,7 +7,11 @@ fn collect(node: Node, out: &mut Vec<(usize, usize, String)>) {
         return;
     }
     if node.is_missing() {
-        out.push((node.start_byte(), node.end_byte(), format!("Missing `{}`", node.kind())));
+        out.push((
+            node.start_byte(),
+            node.end_byte(),
+            format!("Missing `{}`", node.kind()),
+        ));
         return;
     }
     if node.is_error() {

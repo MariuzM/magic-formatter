@@ -30,7 +30,9 @@ const NESTED_SCOPES: &[&str] = &[
 ];
 
 fn is_capture(dotted: Node) -> bool {
-    let Some(parent) = dotted.parent() else { return false };
+    let Some(parent) = dotted.parent() else {
+        return false;
+    };
     dotted.named_child_count() == 1
         && match parent.kind() {
             "case_pattern" => true,
@@ -85,20 +87,27 @@ fn bindings<'t>(node: Node<'t>, out: &mut Vec<Node<'t>>, excluded: &mut Vec<Node
         "as_pattern_target" | "splat_pattern" => targets(node.named_child(0).unwrap_or(node), out),
         "as_pattern" if node.parent().is_some_and(|p| p.kind() == "case_pattern") => {
             let mut cursor = node.walk();
-            out.extend(node.named_children(&mut cursor).filter(|c| c.kind() == "identifier"));
+            out.extend(
+                node.named_children(&mut cursor).filter(|c| c.kind() == "identifier"),
+            );
         }
         "named_expression" => out.extend(field("name")),
         "dotted_name" if is_capture(node) => out.extend(node.named_child(0)),
         "aliased_import" => out.extend(field("alias")),
         "import_statement" | "import_from_statement" => {
             let mut cursor = node.walk();
-            for name in node.children_by_field_name("name", &mut cursor).filter(|n| n.kind() == "dotted_name") {
+            for name in node
+                .children_by_field_name("name", &mut cursor)
+                .filter(|n| n.kind() == "dotted_name")
+            {
                 out.extend(name.named_child(0));
             }
         }
         "global_statement" | "nonlocal_statement" => {
             let mut cursor = node.walk();
-            excluded.extend(node.named_children(&mut cursor).filter(|c| c.kind() == "identifier"));
+            excluded.extend(
+                node.named_children(&mut cursor).filter(|c| c.kind() == "identifier"),
+            );
         }
         _ => {}
     }
@@ -114,8 +123,14 @@ impl Analysis for Python {
     }
 
     fn highlighter(&self) -> &Highlighter {
-        self.highlighter
-            .get_or_init(|| Highlighter::new(&self.grammar(), include_str!("../queries/highlights.scm"), Precedence::LastWins, &[]))
+        self.highlighter.get_or_init(|| {
+            Highlighter::new(
+                &self.grammar(),
+                include_str!("../queries/highlights.scm"),
+                Precedence::LastWins,
+                &[],
+            )
+        })
     }
 
     fn identifier_kinds(&self) -> &'static [&'static str] {
@@ -133,7 +148,12 @@ impl Analysis for Python {
         ]
     }
 
-    fn collect_definitions<'t>(&self, node: Node<'t>, src: &[u8], out: &mut Vec<(Node<'t>, usize)>) {
+    fn collect_definitions<'t>(
+        &self,
+        node: Node<'t>,
+        src:  &[u8],
+        out:  &mut Vec<(Node<'t>, usize)>,
+    ) {
         let mut found    = Vec::new();
         let mut excluded = Vec::new();
         match node.kind() {
@@ -152,7 +172,10 @@ impl Analysis for Python {
             }
             k if NESTED_SCOPES.contains(&k) => {
                 let mut cursor = node.walk();
-                for clause in node.named_children(&mut cursor).filter(|c| c.kind() == "for_in_clause") {
+                for clause in node
+                    .named_children(&mut cursor)
+                    .filter(|c| c.kind() == "for_in_clause")
+                {
                     if let Some(left) = clause.child_by_field_name("left") {
                         targets(left, &mut found);
                     }
@@ -160,10 +183,15 @@ impl Analysis for Python {
             }
             _ => return,
         }
-        let excluded: Vec<&str> = excluded.iter().filter_map(|n| n.utf8_text(src).ok()).collect();
+        let excluded: Vec<&str> = excluded
+            .iter()
+            .filter_map(|n| n.utf8_text(src).ok())
+            .collect();
         let mut seen: Vec<&str> = Vec::new();
         for def in found {
-            let Ok(name) = def.utf8_text(src) else { continue };
+            let Ok(name) = def.utf8_text(src) else {
+                continue;
+            };
             if !excluded.contains(&name) && !seen.contains(&name) {
                 seen.push(name);
                 out.push((def, node.start_byte()));
@@ -201,7 +229,14 @@ impl Analysis for Python {
         ]
     }
 
-    fn import_definitions(&self, tree: &Tree, src: &str, offset: usize, file: &Path, roots: &[PathBuf]) -> Vec<(PathBuf, usize, usize)> {
+    fn import_definitions(
+        &self,
+        tree:   &Tree,
+        src:    &str,
+        offset: usize,
+        file:   &Path,
+        roots:  &[PathBuf],
+    ) -> Vec<(PathBuf, usize, usize)> {
         imports::definitions(tree, src, offset, file, roots)
     }
 
@@ -230,11 +265,18 @@ impl Analysis for Python {
     }
 
     fn import_kinds(&self) -> &'static [&'static str] {
-        &["import_statement", "import_from_statement", "future_import_statement"]
+        &[
+            "import_statement",
+            "import_from_statement",
+            "future_import_statement",
+        ]
     }
 
     fn keywords(&self) -> Vec<String> {
-        grammar_keywords(&self.grammar()).into_iter().filter(|k| !matches!(k.as_str(), "print" | "exec")).collect()
+        grammar_keywords(&self.grammar())
+            .into_iter()
+            .filter(|k| !matches!(k.as_str(), "print" | "exec"))
+            .collect()
     }
 
     fn builtins(&self) -> &'static [&'static str] {
@@ -251,11 +293,11 @@ impl Analysis for Python {
 
     fn member_completions(
         &self,
-        tree: &Tree,
-        src: &str,
+        tree:   &Tree,
+        src:    &str,
         offset: usize,
-        file: &Path,
-        roots: &[PathBuf],
+        file:   &Path,
+        roots:  &[PathBuf],
     ) -> Option<Vec<(String, SymbolKind)>> {
         imports::members(tree, src, offset, file, roots)
     }

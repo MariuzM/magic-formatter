@@ -45,7 +45,11 @@ const BINARY_PARENTS: &[&str] = &[
     "ternary_expression",
 ];
 
-const ALIGN_PARENTS: &[&str] = &["property_declaration", "assignment", "typealias_declaration"];
+const ALIGN_PARENTS: &[&str] = &[
+    "property_declaration",
+    "assignment",
+    "typealias_declaration",
+];
 
 const BODY_WRAPPERS: &[&str] = &[
     "function_body",
@@ -185,13 +189,19 @@ fn error_count(node: Node) -> usize {
 
 fn parse(src: &str) -> Result<Tree, String> {
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_swift::LANGUAGE.into()).map_err(|e| e.to_string())?;
-    parser.parse(src, None).ok_or_else(|| "parser failed".into())
+    parser
+        .set_language(&tree_sitter_swift::LANGUAGE.into())
+        .map_err(|e| e.to_string())?;
+    parser
+        .parse(src, None)
+        .ok_or_else(|| "parser failed".into())
 }
 
 fn caret_regex_starts(node: Node, src: &str, out: &mut Vec<usize>) {
     if node.kind() == "custom_operator"
-        && node.parent().is_some_and(|p| p.kind() == "prefix_expression")
+        && node
+            .parent()
+            .is_some_and(|p| p.kind() == "prefix_expression")
         && src[node.start_byte()..node.end_byte()].starts_with("/^")
     {
         out.push(node.start_byte());
@@ -363,7 +373,9 @@ impl<'a, 't> Formatter<'a, 't> {
             "navigation_expression" => {
                 seen.insert(node.id());
                 let mut cursor = node.walk();
-                if let Some(suffix) = node.children(&mut cursor).find(|c| c.kind() == "navigation_suffix")
+                if let Some(suffix) = node
+                    .children(&mut cursor)
+                    .find(|c| c.kind() == "navigation_suffix")
                     && let Some(dot) = suffix.child(0).filter(|d| d.kind() == ".")
                 {
                     dots.push(dot.start_byte());
@@ -387,8 +399,13 @@ impl<'a, 't> Formatter<'a, 't> {
     }
 
     fn apply_chains(&mut self, tree: &Tree) {
-        let by_start: std::collections::HashMap<usize, usize> =
-            self.toks.iter().enumerate().filter(|(_, t)| t.kind == ".").map(|(i, t)| (t.start, i)).collect();
+        let by_start: std::collections::HashMap<usize, usize> = self
+            .toks
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| t.kind == ".")
+            .map(|(i, t)| (t.start, i))
+            .collect();
         let mut seen   = HashSet::new();
         let mut cursor = tree.walk();
         'walk: loop {
@@ -397,8 +414,15 @@ impl<'a, 't> Formatter<'a, 't> {
                 let mut dots = Vec::new();
                 self.chain_dots(node, &mut dots, &mut seen);
                 dots.sort_unstable();
-                let idx: Vec<usize> = dots.iter().filter_map(|d| by_start.get(d).copied()).collect();
-                if idx.len() == dots.len() && idx.first().is_some_and(|&first| self.brk[first] != Break::None) {
+                let idx: Vec<usize> = dots
+                    .iter()
+                    .filter_map(|d| by_start.get(d).copied())
+                    .collect();
+                if idx.len() == dots.len()
+                    && idx
+                        .first()
+                        .is_some_and(|&first| self.brk[first] != Break::None)
+                {
                     for i in idx {
                         self.break_before(i);
                     }
@@ -526,7 +550,10 @@ impl<'a, 't> Formatter<'a, 't> {
 
     fn is_fresh(&self, i: usize, top: Option<usize>) -> bool {
         let t = &self.toks[i];
-        if matches!(t.kind, "directive" | "{" | "else" | "catch_keyword" | "statement_label") {
+        if matches!(
+            t.kind,
+            "directive" | "{" | "else" | "catch_keyword" | "statement_label"
+        ) {
             return true;
         }
         let Some(p) = (0..i).rev().find(|&j| !self.toks[j].comment) else {
@@ -557,7 +584,12 @@ impl<'a, 't> Formatter<'a, 't> {
             owner = owner.and_then(|o| o.parent());
         }
         match owner.filter(|o| BLOCK_OWNERS.contains(&o.kind())) {
-            Some(o) => line_of[self.toks.partition_point(|t| t.start <= o.start_byte()).saturating_sub(1)],
+            Some(o) => {
+                line_of[self
+                    .toks
+                    .partition_point(|t| t.start <= o.start_byte())
+                    .saturating_sub(1)]
+            }
             None => line_of[open],
         }
     }
@@ -601,8 +633,10 @@ impl<'a, 't> Formatter<'a, 't> {
             match code {
                 None => deferred.push(li),
                 Some(t) => {
-                    let only_closers =
-                        |p: usize| (lines[p].first..=lines[p].last).all(|k| is_close(self.toks[k].kind) || self.toks[k].comment);
+                    let only_closers = |p: usize| {
+                        (lines[p].first..=lines[p].last)
+                            .all(|k| is_close(self.toks[k].kind) || self.toks[k].comment)
+                    };
                     let follows_chain =
                         self.is_chain_dot(t) && prev_code.is_some_and(|p: usize| self.is_chain_dot(lines[p].first) || only_closers(p));
                     let top       = stack.last().copied();
@@ -647,7 +681,8 @@ impl<'a, 't> Formatter<'a, 't> {
             }
         }
         for li in deferred.into_iter().rev() {
-            let next        = (li + 1..lines.len()).find(|&l| (lines[l].first..=lines[l].last).any(|k| !self.toks[k].comment));
+            let next = (li + 1..lines.len())
+                .find(|&l| (lines[l].first..=lines[l].last).any(|k| !self.toks[k].comment));
             lines[li].level = match next {
                 Some(l) if is_close(self.toks[lines[l].first].kind) => lines[l].level + 1,
                 Some(l) => lines[l].level,
@@ -685,7 +720,11 @@ impl<'a, 't> Formatter<'a, 't> {
             if blocked {
                 continue;
             }
-            let li       = self.lines.iter().position(|l| l.first <= open && open <= l.last).unwrap();
+            let li = self
+                .lines
+                .iter()
+                .position(|l| l.first <= open && open <= l.last)
+                .unwrap();
             let first    = self.lines[li].first;
             let mut last = close;
             while last + 1 < self.toks.len() && self.brk[last + 1] == Break::None {
@@ -728,8 +767,10 @@ impl<'a, 't> Formatter<'a, 't> {
                 lj += 1;
             }
             if lj > li {
-                let widths: Vec<usize> = (li..=lj).map(|l| self.width(self.lines[l].first, eqs[l].unwrap() - 1)).collect();
-                let target             = *widths.iter().max().unwrap();
+                let widths: Vec<usize> = (li..=lj)
+                    .map(|l| self.width(self.lines[l].first, eqs[l].unwrap() - 1))
+                    .collect();
+                let target = *widths.iter().max().unwrap();
                 for (l, w) in (li..=lj).zip(widths) {
                     self.padding[eqs[l].unwrap()] = target - w;
                 }
@@ -739,13 +780,15 @@ impl<'a, 't> Formatter<'a, 't> {
     }
 
     fn reindent(&self, i: usize, new_prefix: &str) -> String {
-        let text               = self.text(i);
-        let line_start         = self.src[..self.toks[i].start].rfind('\n').map_or(0, |p| p + 1);
-        let old_prefix: String = self.src[line_start..].chars().take_while(|c| *c == ' ' || *c == '\t').collect();
-        let mut parts          = text.split('\n');
-        let head               = parts.next().unwrap_or_default();
-        let rest: Vec<&str>    = parts.collect();
-        let shiftable          = rest.iter().all(|l| l.trim().is_empty() || l.starts_with(old_prefix.as_str()));
+        let text                  = self.text(i);
+        let line_start            = self.src[..self.toks[i].start].rfind('\n').map_or(0, |p| p + 1);
+        let old_prefix: String    = self.src[line_start..].chars().take_while(|c| *c == ' ' || *c == '\t').collect();
+        let mut parts             = text.split('\n');
+        let head                  = parts.next().unwrap_or_default();
+        let rest:       Vec<&str> = parts.collect();
+        let shiftable = rest
+            .iter()
+            .all(|l| l.trim().is_empty() || l.starts_with(old_prefix.as_str()));
         if !shiftable || old_prefix == new_prefix {
             return text.to_string();
         }
@@ -787,7 +830,11 @@ impl<'a, 't> Formatter<'a, 't> {
                 }
             }
         }
-        let mut result: String = out.split('\n').map(str::trim_end).collect::<Vec<_>>().join("\n");
+        let mut result: String = out
+            .split('\n')
+            .map(str::trim_end)
+            .collect::<Vec<_>>()
+            .join("\n");
         result.push('\n');
         result
     }

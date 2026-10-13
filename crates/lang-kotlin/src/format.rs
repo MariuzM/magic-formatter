@@ -57,6 +57,8 @@ const TYPE_COLON: &[&str] = &[
 
 const ALIGN_PARENTS: &[&str] = &["property_declaration", "assignment"];
 
+const TYPED_DECLS: &[&str] = &["property_declaration", "class_parameter", "parameter"];
+
 const BODY_WRAPPERS: &[&str] = &["block", "function_body", "class_body", "enum_class_body"];
 
 const BLOCK_OWNERS: &[&str] = &[
@@ -193,8 +195,12 @@ fn error_count(node: Node) -> usize {
 
 fn parse(src: &str) -> Result<Tree, String> {
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_kotlin_ng::LANGUAGE.into()).map_err(|e| e.to_string())?;
-    parser.parse(src, None).ok_or_else(|| "parser failed".into())
+    parser
+        .set_language(&tree_sitter_kotlin_ng::LANGUAGE.into())
+        .map_err(|e| e.to_string())?;
+    parser
+        .parse(src, None)
+        .ok_or_else(|| "parser failed".into())
 }
 
 fn is_open(kind: &str) -> bool {
@@ -354,7 +360,11 @@ impl<'a, 't> Formatter<'a, 't> {
                     self.chain_dots(callee, dots, seen);
                 }
             }
-            "unary_expression" if node.child_by_field_name("operator").is_some_and(|o| o.kind() == "!!") => {
+            "unary_expression"
+                if node
+                    .child_by_field_name("operator")
+                    .is_some_and(|o| o.kind() == "!!") =>
+            {
                 if let Some(target) = node.child_by_field_name("argument") {
                     self.chain_dots(target, dots, seen);
                 }
@@ -364,8 +374,13 @@ impl<'a, 't> Formatter<'a, 't> {
     }
 
     fn apply_chains(&mut self, tree: &Tree) {
-        let by_start: HashMap<usize, usize> =
-            self.toks.iter().enumerate().filter(|(_, t)| is_dot(t.kind)).map(|(i, t)| (t.start, i)).collect();
+        let by_start: HashMap<usize, usize> = self
+            .toks
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| is_dot(t.kind))
+            .map(|(i, t)| (t.start, i))
+            .collect();
         let mut seen   = HashSet::new();
         let mut cursor = tree.walk();
         'walk: loop {
@@ -374,8 +389,15 @@ impl<'a, 't> Formatter<'a, 't> {
                 let mut dots = Vec::new();
                 self.chain_dots(node, &mut dots, &mut seen);
                 dots.sort_unstable();
-                let idx: Vec<usize> = dots.iter().filter_map(|d| by_start.get(d).copied()).collect();
-                if idx.len() == dots.len() && idx.first().is_some_and(|&first| self.brk[first] != Break::None) {
+                let idx: Vec<usize> = dots
+                    .iter()
+                    .filter_map(|d| by_start.get(d).copied())
+                    .collect();
+                if idx.len() == dots.len()
+                    && idx
+                        .first()
+                        .is_some_and(|&first| self.brk[first] != Break::None)
+                {
                     for i in idx {
                         self.break_before(i);
                     }
@@ -408,7 +430,11 @@ impl<'a, 't> Formatter<'a, 't> {
 
     fn is_angle(&self, i: usize) -> bool {
         let t = &self.toks[i];
-        matches!(t.kind, "<" | ">") && matches!(t.parent, "type_arguments" | "type_parameters" | "super_expression")
+        matches!(t.kind, "<" | ">")
+            && matches!(
+                t.parent,
+                "type_arguments" | "type_parameters" | "super_expression"
+            )
     }
 
     fn is_prefix(&self, i: usize) -> bool {
@@ -550,7 +576,12 @@ impl<'a, 't> Formatter<'a, 't> {
             owner = owner.and_then(|o| o.parent());
         }
         match owner.filter(|o| BLOCK_OWNERS.contains(&o.kind())) {
-            Some(o) => line_of[self.toks.partition_point(|t| t.start <= o.start_byte()).saturating_sub(1)],
+            Some(o) => {
+                line_of[self
+                    .toks
+                    .partition_point(|t| t.start <= o.start_byte())
+                    .saturating_sub(1)]
+            }
             None => line_of[open],
         }
     }
@@ -592,8 +623,10 @@ impl<'a, 't> Formatter<'a, 't> {
             match code {
                 None => deferred.push(li),
                 Some(t) => {
-                    let only_closers =
-                        |p: usize| (lines[p].first..=lines[p].last).all(|k| is_close(self.toks[k].kind) || self.toks[k].comment);
+                    let only_closers = |p: usize| {
+                        (lines[p].first..=lines[p].last)
+                            .all(|k| is_close(self.toks[k].kind) || self.toks[k].comment)
+                    };
                     let follows_chain =
                         self.is_chain_dot(t) && prev_code.is_some_and(|p: usize| self.is_chain_dot(lines[p].first) || only_closers(p));
                     let top   = stack.last().copied();
@@ -620,7 +653,8 @@ impl<'a, 't> Formatter<'a, 't> {
             }
         }
         for li in deferred.into_iter().rev() {
-            let next        = (li + 1..lines.len()).find(|&l| (lines[l].first..=lines[l].last).any(|k| !self.toks[k].comment));
+            let next = (li + 1..lines.len())
+                .find(|&l| (lines[l].first..=lines[l].last).any(|k| !self.toks[k].comment));
             lines[li].level = match next {
                 Some(l) if is_close(self.toks[lines[l].first].kind) => lines[l].level + 1,
                 Some(l) => lines[l].level,
@@ -658,7 +692,11 @@ impl<'a, 't> Formatter<'a, 't> {
             if blocked {
                 continue;
             }
-            let li       = self.lines.iter().position(|l| l.first <= open && open <= l.last).unwrap();
+            let li = self
+                .lines
+                .iter()
+                .position(|l| l.first <= open && open <= l.last)
+                .unwrap();
             let first    = self.lines[li].first;
             let mut last = close;
             while last + 1 < self.toks.len() && self.brk[last + 1] == Break::None {
@@ -671,6 +709,88 @@ impl<'a, 't> Formatter<'a, 't> {
                 }
                 self.compute_lines();
             }
+        }
+    }
+
+    fn is_annotation_line(&self, li: usize) -> bool {
+        let l = &self.lines[li];
+        let t = &self.toks[l.first];
+        t.kind == "@" && t.node.parent().is_some_and(|p| p.kind() == "annotation" && p.end_byte() == self.toks[l.last].end)
+    }
+
+    fn is_prelude_line(&self, li: usize) -> bool {
+        let l = &self.lines[li];
+        (l.first..=l.last).all(|k| self.toks[k].comment) || self.is_annotation_line(li)
+    }
+
+    fn decl_at(&self, li: usize) -> Option<Node<'t>> {
+        let mut node = Some(self.toks[self.lines[li].first].node);
+        while let Some(n) = node {
+            if TYPED_DECLS.contains(&n.kind()) {
+                return Some(n);
+            }
+            node = n.parent();
+        }
+        None
+    }
+
+    fn type_slot(&self, li: usize) -> Option<Option<usize>> {
+        if self.is_prelude_line(li) {
+            return Some(None);
+        }
+        let l = &self.lines[li];
+        if (l.first..=l.last).any(|k| self.toks[k].multiline) {
+            return None;
+        }
+        let decl = self.decl_at(li)?;
+        if decl.end_byte() > self.toks[l.last].end {
+            return None;
+        }
+        let mut p = li;
+        while self.toks[self.lines[p].first].start > decl.start_byte() {
+            if p == 0 || !self.is_prelude_line(p - 1) {
+                return None;
+            }
+            p -= 1;
+        }
+        let colon = (l.first..l.last).find(|&k| {
+            let t = &self.toks[k];
+            t.kind == ":"
+                && !t.named
+                && t.node.parent().is_some_and(|n| {
+                    n.id() == decl.id() || n.kind() == "variable_declaration" && n.parent().is_some_and(|g| g.id() == decl.id())
+                })
+        });
+        Some(colon)
+    }
+
+    fn align_types(&mut self) {
+        let slots: Vec<Option<Option<usize>>> = (0..self.lines.len()).map(|li| self.type_slot(li)).collect();
+        let mut li                            = 0;
+        while li < self.lines.len() {
+            let mut lj = li;
+            while slots[li].is_some()
+                && lj + 1 < self.lines.len()
+                && slots[lj + 1].is_some()
+                && self.brk[self.lines[lj + 1].first] == Break::Line
+                && self.lines[lj + 1].level == self.lines[li].level
+            {
+                lj += 1;
+            }
+            let colons: Vec<(usize, usize)> = (li..=lj)
+                .filter_map(|l| slots[l].flatten().map(|k| (l, k)))
+                .collect();
+            if colons.len() > 1 {
+                let widths: Vec<usize> = colons
+                    .iter()
+                    .map(|&(l, k)| self.width(self.lines[l].first, k))
+                    .collect();
+                let target = *widths.iter().max().unwrap();
+                for (&(_, k), w) in colons.iter().zip(widths) {
+                    self.padding[k + 1] = target - w;
+                }
+            }
+            li = lj + 1;
         }
     }
 
@@ -701,8 +821,10 @@ impl<'a, 't> Formatter<'a, 't> {
                 lj += 1;
             }
             if lj > li {
-                let widths: Vec<usize> = (li..=lj).map(|l| self.width(self.lines[l].first, eqs[l].unwrap() - 1)).collect();
-                let target             = *widths.iter().max().unwrap();
+                let widths: Vec<usize> = (li..=lj)
+                    .map(|l| self.width(self.lines[l].first, eqs[l].unwrap() - 1))
+                    .collect();
+                let target = *widths.iter().max().unwrap();
                 for (l, w) in (li..=lj).zip(widths) {
                     self.padding[eqs[l].unwrap()] = target - w;
                 }
@@ -712,14 +834,16 @@ impl<'a, 't> Formatter<'a, 't> {
     }
 
     fn reindent(&self, i: usize, new_prefix: &str) -> String {
-        let text               = self.text(i);
-        let line_start         = self.src[..self.toks[i].start].rfind('\n').map_or(0, |p| p + 1);
-        let old_prefix: String = self.src[line_start..].chars().take_while(|c| *c == ' ' || *c == '\t').collect();
-        let mut parts          = text.split('\n');
-        let head               = parts.next().unwrap_or_default();
-        let rest: Vec<&str>    = parts.collect();
-        let shiftable          = rest.iter().all(|l| l.trim().is_empty() || l.starts_with(old_prefix.as_str()));
-        let mut out            = head.trim_end().to_string();
+        let text                  = self.text(i);
+        let line_start            = self.src[..self.toks[i].start].rfind('\n').map_or(0, |p| p + 1);
+        let old_prefix: String    = self.src[line_start..].chars().take_while(|c| *c == ' ' || *c == '\t').collect();
+        let mut parts             = text.split('\n');
+        let head                  = parts.next().unwrap_or_default();
+        let rest:       Vec<&str> = parts.collect();
+        let shiftable = rest
+            .iter()
+            .all(|l| l.trim().is_empty() || l.starts_with(old_prefix.as_str()));
+        let mut out = head.trim_end().to_string();
         for l in rest {
             out.push('\n');
             if l.trim().is_empty() {
@@ -784,6 +908,7 @@ pub fn format(src: &str, opts: &Options) -> Result<String, String> {
     f.apply_chains(&tree);
     f.compute_lines();
     f.collapse(candidates);
+    f.align_types();
     f.align();
     let out = f.emit();
 

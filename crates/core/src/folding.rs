@@ -15,7 +15,12 @@ pub enum FoldKind {
 }
 
 fn starts_line(src: &str, node: Node) -> bool {
-    src[..node.start_byte()].rsplit('\n').next().unwrap_or_default().trim().is_empty()
+    src[..node.start_byte()]
+        .rsplit('\n')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .is_empty()
 }
 
 fn last_leaf(node: Node) -> Node {
@@ -26,7 +31,11 @@ fn last_leaf(node: Node) -> Node {
     node
 }
 
-pub fn folding_ranges(lang: &dyn Analysis, tree: &Tree, src: &str) -> Vec<(usize, usize, FoldKind)> {
+pub fn folding_ranges(
+    lang: &dyn Analysis,
+    tree: &Tree,
+    src:  &str,
+) -> Vec<(usize, usize, FoldKind)> {
     let lines                                         = LineIndex::new(src);
     let comments                                      = lang.comment_kinds();
     let imports                                       = lang.import_kinds();
@@ -51,9 +60,16 @@ pub fn folding_ranges(lang: &dyn Analysis, tree: &Tree, src: &str) -> Vec<(usize
         let n    = node.child_count();
         if n >= 2
             && let (Some(first), Some(last)) = (node.child(0), node.child(n - 1))
-            && matches!((first.kind(), last.kind()), ("(", ")") | ("[", "]") | ("{", "}"))
+            && matches!(
+                (first.kind(), last.kind()),
+                ("(", ")") | ("[", "]") | ("{", "}")
+            )
         {
-            add(lines.line_of(first.start_byte()), end_line(node), FoldKind::Region);
+            add(
+                lines.line_of(first.start_byte()),
+                end_line(node),
+                FoldKind::Region,
+            );
         }
         if let Some((start, end)) = lang.fold(node) {
             let line = lines.line_of(end.saturating_sub(1).max(start));
@@ -66,7 +82,11 @@ pub fn folding_ranges(lang: &dyn Analysis, tree: &Tree, src: &str) -> Vec<(usize
             add(lines.line_of(start), line, FoldKind::Region);
         }
         if comments.contains(&node.kind()) {
-            add(lines.line_of(node.start_byte()), lines.line_of(node.end_byte().saturating_sub(1)), FoldKind::Comment);
+            add(
+                lines.line_of(node.start_byte()),
+                lines.line_of(node.end_byte().saturating_sub(1)),
+                FoldKind::Comment,
+            );
         }
         if n > 0 {
             let category = |c: Node| {
@@ -94,7 +114,11 @@ pub fn folding_ranges(lang: &dyn Analysis, tree: &Tree, src: &str) -> Vec<(usize
                     j += 1;
                 }
                 if j > i {
-                    add(lines.line_of(children[i].start_byte()), lines.line_of(children[j].end_byte().saturating_sub(1)), kind);
+                    add(
+                        lines.line_of(children[i].start_byte()),
+                        lines.line_of(children[j].end_byte().saturating_sub(1)),
+                        kind,
+                    );
                 }
                 i = j + 1;
             }
@@ -111,7 +135,10 @@ pub fn folding_ranges(lang: &dyn Analysis, tree: &Tree, src: &str) -> Vec<(usize
             }
         }
     }
-    folds.into_iter().map(|(start, (end, kind))| (start, end, kind)).collect()
+    folds
+        .into_iter()
+        .map(|(start, (end, kind))| (start, end, kind))
+        .collect()
 }
 
 pub fn selection_ranges(tree: &Tree, offset: usize) -> Vec<(usize, usize)> {

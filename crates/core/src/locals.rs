@@ -38,8 +38,14 @@ impl Locals {
             lang.collect_definitions(node, bytes, &mut found);
             if let Some(&(scope_start, scope_end)) = scopes.last() {
                 for &(def, visible) in &found {
-                    let Ok(name) = def.utf8_text(bytes) else { continue };
-                    locals.by_name.entry(name.to_string()).or_default().push(locals.defs.len());
+                    let Ok(name) = def.utf8_text(bytes) else {
+                        continue;
+                    };
+                    locals
+                        .by_name
+                        .entry(name.to_string())
+                        .or_default()
+                        .push(locals.defs.len());
                     locals.defs.push(Def {
                         name: name.to_string(),
                         start: def.start_byte(),

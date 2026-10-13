@@ -38,8 +38,10 @@ fn is_empty(result: &Value) -> bool {
         Value::Null => true,
         Value::Array(a) => a.is_empty(),
         Value::Object(o) => {
-            let empty_list  = ["items", "signatures"].iter().any(|k| o.get(*k).and_then(Value::as_array).is_some_and(Vec::is_empty));
-            let empty_hover = o.get("contents").is_some_and(|c| c.is_null() || c == "" || c["value"] == "");
+            let empty_list = ["items", "signatures"].iter().any(|k| o.get(*k).and_then(Value::as_array).is_some_and(Vec::is_empty));
+            let empty_hover = o
+                .get("contents")
+                .is_some_and(|c| c.is_null() || c == "" || c["value"] == "");
             empty_list || empty_hover
         }
         _ => false,
@@ -64,12 +66,20 @@ fn handshake(stdin: &mut ChildStdin, pending: &Pending, init: Value) -> bool {
     pending.lock().unwrap().insert(id.clone(), tx);
     write(stdin, Request::new(id, "initialize".into(), init).into())
         && rx.recv_timeout(INIT_TIMEOUT).is_ok()
-        && write(stdin, Notification::new("initialized".into(), json!({})).into())
+        && write(
+            stdin,
+            Notification::new("initialized".into(), json!({})).into(),
+        )
 }
 
 impl SourceKit {
     pub fn spawn(init: Value) -> Option<Self> {
-        let mut child                                               = command().stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
+        let mut child = command()
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
         let mut stdin                                               = child.stdin.take()?;
         let stdout                                                  = child.stdout.take()?;
         let pending                                                 = Pending::default();

@@ -59,7 +59,10 @@ pub fn parsed(lang: &dyn Language, path: &Path) -> Option<(Arc<String>, Tree)> {
 pub type Scan = (Vec<IndexedSymbol>, Option<Vec<(usize, usize)>>);
 
 pub fn scan(path: &Path, text: &str) -> Scan {
-    let Some(analysis) = language_for_path(path).and_then(|l| l.analysis()).filter(|a| a.language_server()) else {
+    let Some(analysis) = language_for_path(path)
+        .and_then(|l| l.analysis())
+        .filter(|a| a.language_server())
+    else {
         return (Vec::new(), None);
     };
     PARSER.with_borrow_mut(|parser| {
@@ -70,7 +73,10 @@ pub fn scan(path: &Path, text: &str) -> Scan {
             return (Vec::new(), None);
         };
         let kinds = analysis.definition_kinds(tree.root_node());
-        (indexed(analysis, &tree, text), Some(name_ranges(&tree, kinds)))
+        (
+            indexed(analysis, &tree, text),
+            Some(name_ranges(&tree, kinds)),
+        )
     })
 }
 
@@ -84,15 +90,20 @@ fn flush(index: &RwLock<Index>, batch: &mut Vec<(PathBuf, String, Scan)>) {
     }
 }
 
-pub fn index_roots(roots: Vec<PathBuf>, languages: Vec<&'static str>, warm: Vec<&'static str>, index: Arc<RwLock<Index>>) {
+pub fn index_roots(
+    roots:     Vec<PathBuf>,
+    languages: Vec<&'static str>,
+    warm:      Vec<&'static str>,
+    index:     Arc<RwLock<Index>>,
+) {
     if roots.is_empty() || languages.is_empty() {
         return;
     }
     std::thread::spawn(move || {
-        let started        = Instant::now();
-        let (tx, rx)       = crossbeam_channel::bounded(INDEX_BATCH * 4);
-        let warmed         = Mutex::new(HashSet::new());
-        let writer         = std::thread::spawn({
+        let started  = Instant::now();
+        let (tx, rx) = crossbeam_channel::bounded(INDEX_BATCH * 4);
+        let warmed   = Mutex::new(HashSet::new());
+        let writer   = std::thread::spawn({
             let index = index.clone();
             move || {
                 let mut count = 0;
@@ -112,11 +123,17 @@ pub fn index_roots(roots: Vec<PathBuf>, languages: Vec<&'static str>, warm: Vec<
         for root in &roots[1..] {
             walk.add(root);
         }
-        walk.threads(std::thread::available_parallelism().map_or(1, |n| n.get()).min(INDEX_THREADS));
+        walk.threads(
+            std::thread::available_parallelism()
+                .map_or(1, |n| n.get())
+                .min(INDEX_THREADS),
+        );
         walk.build_parallel().run(|| {
             let (tx, languages, warm, warmed) = (tx.clone(), &languages, &warm, &warmed);
             Box::new(move |entry| {
-                let Ok(entry)  = entry else { return WalkState::Continue };
+                let Ok(entry) = entry else {
+                    return WalkState::Continue;
+                };
                 let path       = entry.path();
                 let lang       = language_for_path(path).filter(|l| languages.contains(&l.id()));
                 let Some(lang) = lang.filter(|_| entry.file_type().is_some_and(|t| t.is_file())) else {
@@ -134,6 +151,9 @@ pub fn index_roots(roots: Vec<PathBuf>, languages: Vec<&'static str>, warm: Vec<
         });
         drop(tx);
         let count = writer.join().unwrap_or_default();
-        eprintln!("magic-formatter: indexed {count} files in {:.0?}", started.elapsed());
+        eprintln!(
+            "magic-formatter: indexed {count} files in {:.0?}",
+            started.elapsed()
+        );
     });
 }

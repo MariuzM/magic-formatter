@@ -19,7 +19,13 @@ pub struct Index {
 }
 
 impl Index {
-    pub fn update(&mut self, path: &Path, text: &str, outline: Vec<IndexedSymbol>, defined: Option<Vec<(usize, usize)>>) {
+    pub fn update(
+        &mut self,
+        path:    &Path,
+        text:    &str,
+        outline: Vec<IndexedSymbol>,
+        defined: Option<Vec<(usize, usize)>>,
+    ) {
         let id = self.remove(path).unwrap_or_else(|| {
             let id              = self.paths.len() as u32;
             let path: Arc<Path> = Arc::from(path);
@@ -68,8 +74,10 @@ impl Index {
         self.file_syms[id as usize] = syms;
 
         self.file_defs[id as usize] = defined.map(|ranges| {
-            let mut defs: Vec<u32> =
-                ranges.into_iter().filter_map(|(start, end)| self.symbols.get(identifiers(text.get(start..end)?).next()?).copied()).collect();
+            let mut defs: Vec<u32> = ranges
+                .into_iter()
+                .filter_map(|(start, end)| self.symbols.get(identifiers(text.get(start..end)?).next()?).copied())
+                .collect();
             defs.sort_unstable();
             defs.dedup();
             defs
@@ -139,7 +147,9 @@ impl Index {
     pub fn outline(&self) -> impl Iterator<Item = (&Path, &IndexedSymbol)> {
         let mut order: Vec<usize> = (0..self.paths.len()).collect();
         order.sort_unstable_by(|&a, &b| self.paths[a].cmp(&self.paths[b]));
-        order.into_iter().flat_map(move |i| self.outlines[i].iter().map(move |s| (&*self.paths[i], s)))
+        order
+            .into_iter()
+            .flat_map(move |i| self.outlines[i].iter().map(move |s| (&*self.paths[i], s)))
     }
 
     pub fn file_count(&self) -> usize {
@@ -189,5 +199,17 @@ pub fn enum_declarations(text: &str) -> impl Iterator<Item = &str> {
 }
 
 pub fn type_declarations(text: &str) -> impl Iterator<Item = &str> {
-    declarations(text, &["struct", "union", "trait", "type", "class", "protocol", "actor", "typealias"])
+    declarations(
+        text,
+        &[
+            "struct",
+            "union",
+            "trait",
+            "type",
+            "class",
+            "protocol",
+            "actor",
+            "typealias",
+        ],
+    )
 }

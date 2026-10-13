@@ -49,8 +49,13 @@ fn strip_comment(text: &str) -> Vec<String> {
             })
             .collect();
     }
-    let body = ["///", "//!", "//", "#"].iter().find_map(|p| text.strip_prefix(p)).unwrap_or(text);
-    vec![body.strip_prefix(' ').unwrap_or(body).trim_end().to_string()]
+    let body = ["///", "//!", "//", "#"]
+        .iter()
+        .find_map(|p| text.strip_prefix(p))
+        .unwrap_or(text);
+    vec![
+        body.strip_prefix(' ').unwrap_or(body).trim_end().to_string(),
+    ]
 }
 
 pub fn comments_before(node: Node, src: &str, kinds: &[&str]) -> Option<String> {
@@ -58,7 +63,14 @@ pub fn comments_before(node: Node, src: &str, kinds: &[&str]) -> Option<String> 
     let mut next  = node;
     while let Some(prev) = next.prev_sibling().filter(|p| kinds.contains(&p.kind())) {
         let gap = &src[prev.end_byte()..next.start_byte()];
-        if gap.matches('\n').count() > 1 || !src[..prev.start_byte()].rsplit('\n').next().unwrap_or_default().trim().is_empty() {
+        if gap.matches('\n').count() > 1
+            || !src[..prev.start_byte()]
+                .rsplit('\n')
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .is_empty()
+        {
             break;
         }
         let text = &src[prev.start_byte()..prev.end_byte()];
@@ -84,7 +96,10 @@ pub fn escape_markdown(plain: &str) -> String {
             let indent  = line.len() - line.trim_start().len();
             let mut out = "&nbsp;".repeat(indent);
             for c in line.trim_start().chars() {
-                if matches!(c, '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '#' | '|') {
+                if matches!(
+                    c,
+                    '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '#' | '|'
+                ) {
                     out.push('\\');
                 }
                 out.push(c);

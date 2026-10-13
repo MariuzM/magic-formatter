@@ -21,7 +21,14 @@ const BINARY_PARENTS: &[&str] = &[
     "conditional_expression",
 ];
 
-const SPLATS: &[&str] = &["list_splat", "dictionary_splat", "list_splat_pattern", "dictionary_splat_pattern"];
+const TYPED_DECLS: &[&str] = &["assignment", "typed_parameter", "typed_default_parameter"];
+
+const SPLATS: &[&str] = &[
+    "list_splat",
+    "dictionary_splat",
+    "list_splat_pattern",
+    "dictionary_splat_pattern",
+];
 
 const HEADERS: &[&str] = &[
     "function_definition",
@@ -148,8 +155,12 @@ fn first_error(node: Node) -> Option<Node> {
 
 fn parse(src: &str) -> Result<Tree, String> {
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_python::LANGUAGE.into()).map_err(|e| e.to_string())?;
-    parser.parse(src, None).ok_or_else(|| "parser failed".into())
+    parser
+        .set_language(&tree_sitter_python::LANGUAGE.into())
+        .map_err(|e| e.to_string())?;
+    parser
+        .parse(src, None)
+        .ok_or_else(|| "parser failed".into())
 }
 
 fn is_open(kind: &str) -> bool {
@@ -194,12 +205,21 @@ fn in_header(node: Node) -> bool {
 }
 
 fn is_docstring(node: Node) -> bool {
-    let Some(stmt) = node.parent().filter(|p| p.kind() == "expression_statement" && p.named_child_count() == 1) else {
+    let Some(stmt) = node
+        .parent()
+        .filter(|p| p.kind() == "expression_statement" && p.named_child_count() == 1)
+    else {
         return false;
     };
-    let Some(body) = stmt.parent() else { return false };
+    let Some(body) = stmt.parent() else {
+        return false;
+    };
     let mut cursor = body.walk();
-    matches!(body.kind(), "block" | "module") && body.named_children(&mut cursor).find(|c| c.kind() != "comment") == Some(stmt)
+    matches!(body.kind(), "block" | "module")
+        && body
+            .named_children(&mut cursor)
+            .find(|c| c.kind() != "comment")
+            == Some(stmt)
 }
 
 struct Formatter<'a, 't> {
@@ -360,8 +380,13 @@ impl<'a, 't> Formatter<'a, 't> {
     }
 
     fn apply_chains(&mut self, tree: &Tree) {
-        let by_start: HashMap<usize, usize> =
-            self.toks.iter().enumerate().filter(|(_, t)| t.kind == ".").map(|(i, t)| (t.start, i)).collect();
+        let by_start: HashMap<usize, usize> = self
+            .toks
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| t.kind == ".")
+            .map(|(i, t)| (t.start, i))
+            .collect();
         let mut seen   = HashSet::new();
         let mut cursor = tree.walk();
         'walk: loop {
@@ -370,7 +395,10 @@ impl<'a, 't> Formatter<'a, 't> {
                 let mut dots = Vec::new();
                 self.chain_dots(node, &mut dots, &mut seen);
                 dots.sort_unstable();
-                let idx: Vec<usize> = dots.iter().filter_map(|d| by_start.get(d).copied()).collect();
+                let idx: Vec<usize> = dots
+                    .iter()
+                    .filter_map(|d| by_start.get(d).copied())
+                    .collect();
                 let breakable = idx.len() == dots.len()
                     && idx.first().is_some_and(|&first| {
                         let last = *idx.last().unwrap();
@@ -409,7 +437,11 @@ impl<'a, 't> Formatter<'a, 't> {
         let t = &self.toks[i];
         match (t.kind, t.parent) {
             ("(", "argument_list" | "parameters") => true,
-            ("(", "generator_expression") => t.node.parent().and_then(|p| p.parent()).is_some_and(|g| g.kind() == "call"),
+            ("(", "generator_expression") => t
+                .node
+                .parent()
+                .and_then(|p| p.parent())
+                .is_some_and(|g| g.kind() == "call"),
             ("[", "subscript" | "type_parameter") => true,
             _ => false,
         }
@@ -520,7 +552,8 @@ impl<'a, 't> Formatter<'a, 't> {
             }
         }
         for li in deferred.into_iter().rev() {
-            let next        = (li + 1..lines.len()).find(|&l| (lines[l].first..=lines[l].last).any(|k| !self.toks[k].comment));
+            let next = (li + 1..lines.len())
+                .find(|&l| (lines[l].first..=lines[l].last).any(|k| !self.toks[k].comment));
             lines[li].level = match next {
                 Some(l) if is_close(self.toks[lines[l].first].kind) => lines[l].level + 1,
                 Some(l) => lines[l].level,
@@ -558,7 +591,11 @@ impl<'a, 't> Formatter<'a, 't> {
             if blocked {
                 continue;
             }
-            let li       = self.lines.iter().position(|l| l.first <= open && open <= l.last).unwrap();
+            let li = self
+                .lines
+                .iter()
+                .position(|l| l.first <= open && open <= l.last)
+                .unwrap();
             let first    = self.lines[li].first;
             let mut last = close;
             while last + 1 < self.toks.len() && self.brk[last + 1] == Break::None {
@@ -574,6 +611,68 @@ impl<'a, 't> Formatter<'a, 't> {
         }
     }
 
+    fn decl_at(&self, li: usize) -> Option<Node<'t>> {
+        let mut node = Some(self.toks[self.lines[li].first].node);
+        while let Some(n) = node {
+            if TYPED_DECLS.contains(&n.kind()) || n.parent().is_some_and(|p| p.kind() == "parameters") {
+                return Some(n);
+            }
+            node = n.parent();
+        }
+        None
+    }
+
+    fn type_slot(&self, li: usize) -> Option<Option<usize>> {
+        let l = &self.lines[li];
+        if (l.first..=l.last).all(|k| self.toks[k].comment) {
+            return Some(None);
+        }
+        if (l.first..=l.last)
+            .any(|k| self.toks[k].multiline || self.toks[k].kind == "line_continuation")
+        {
+            return None;
+        }
+        let decl = self.decl_at(li)?;
+        if decl.start_byte() != self.toks[l.first].start || decl.end_byte() > self.toks[l.last].end {
+            return None;
+        }
+        let colon = (l.first..l.last).find(|&k| {
+            let t = &self.toks[k];
+            t.kind == ":" && !t.named && t.node.parent().is_some_and(|n| n.id() == decl.id())
+        });
+        Some(colon)
+    }
+
+    fn align_types(&mut self) {
+        let slots: Vec<Option<Option<usize>>> = (0..self.lines.len()).map(|li| self.type_slot(li)).collect();
+        let mut li                            = 0;
+        while li < self.lines.len() {
+            let mut lj = li;
+            while slots[li].is_some()
+                && lj + 1 < self.lines.len()
+                && slots[lj + 1].is_some()
+                && self.brk[self.lines[lj + 1].first] == Break::Line
+                && self.lines[lj + 1].level == self.lines[li].level
+            {
+                lj += 1;
+            }
+            let colons: Vec<(usize, usize)> = (li..=lj)
+                .filter_map(|l| slots[l].flatten().map(|k| (l, k)))
+                .collect();
+            if colons.len() > 1 {
+                let widths: Vec<usize> = colons
+                    .iter()
+                    .map(|&(l, k)| self.width(self.lines[l].first, k))
+                    .collect();
+                let target = *widths.iter().max().unwrap();
+                for (&(_, k), w) in colons.iter().zip(widths) {
+                    self.padding[k + 1] = target - w;
+                }
+            }
+            li = lj + 1;
+        }
+    }
+
     fn align(&mut self) {
         let mut eqs: Vec<Option<usize>> = Vec::with_capacity(self.lines.len());
         for l in &self.lines {
@@ -585,7 +684,8 @@ impl<'a, 't> Formatter<'a, 't> {
                 let stmt = self.toks[e].node.parent().unwrap();
                 stmt.start_byte() == self.toks[l.first].start
                     && stmt.end_byte() <= self.toks[l.last].end
-                    && !(l.first..=l.last).any(|k| self.toks[k].multiline || self.toks[k].kind == "line_continuation")
+                    && !(l.first..=l.last)
+                        .any(|k| self.toks[k].multiline || self.toks[k].kind == "line_continuation")
             });
             eqs.push(ok);
         }
@@ -601,8 +701,10 @@ impl<'a, 't> Formatter<'a, 't> {
                 lj += 1;
             }
             if lj > li {
-                let widths: Vec<usize> = (li..=lj).map(|l| self.width(self.lines[l].first, eqs[l].unwrap() - 1)).collect();
-                let target             = *widths.iter().max().unwrap();
+                let widths: Vec<usize> = (li..=lj)
+                    .map(|l| self.width(self.lines[l].first, eqs[l].unwrap() - 1))
+                    .collect();
+                let target = *widths.iter().max().unwrap();
                 for (l, w) in (li..=lj).zip(widths) {
                     self.padding[eqs[l].unwrap()] = target - w;
                 }
@@ -612,13 +714,15 @@ impl<'a, 't> Formatter<'a, 't> {
     }
 
     fn reindent(&self, i: usize, new_prefix: &str) -> String {
-        let text               = self.text(i);
-        let line_start         = self.src[..self.toks[i].start].rfind('\n').map_or(0, |p| p + 1);
-        let old_prefix: String = self.src[line_start..].chars().take_while(|c| *c == ' ' || *c == '\t').collect();
-        let mut parts          = text.split('\n');
-        let head               = parts.next().unwrap_or_default();
-        let rest: Vec<&str>    = parts.collect();
-        let shiftable          = rest.iter().all(|l| l.trim().is_empty() || l.starts_with(old_prefix.as_str()));
+        let text                  = self.text(i);
+        let line_start            = self.src[..self.toks[i].start].rfind('\n').map_or(0, |p| p + 1);
+        let old_prefix: String    = self.src[line_start..].chars().take_while(|c| *c == ' ' || *c == '\t').collect();
+        let mut parts             = text.split('\n');
+        let head                  = parts.next().unwrap_or_default();
+        let rest:       Vec<&str> = parts.collect();
+        let shiftable = rest
+            .iter()
+            .all(|l| l.trim().is_empty() || l.starts_with(old_prefix.as_str()));
         if !shiftable || old_prefix == new_prefix {
             return text.to_string();
         }
@@ -674,7 +778,10 @@ fn strip_ws(s: &str) -> impl Iterator<Item = char> + '_ {
 pub fn format(src: &str, opts: &Options) -> Result<String, String> {
     let tree = parse(src)?;
     if let Some(e) = first_error(tree.root_node()) {
-        return Err(format!("syntax error on line {}", e.start_position().row + 1));
+        return Err(format!(
+            "syntax error on line {}",
+            e.start_position().row + 1
+        ));
     }
     let toks = tokens(&tree, src);
     if toks.is_empty() {
@@ -688,6 +795,7 @@ pub fn format(src: &str, opts: &Options) -> Result<String, String> {
     f.apply_chains(&tree);
     f.compute_lines();
     f.collapse(candidates);
+    f.align_types();
     f.align();
     let out = f.emit();
 

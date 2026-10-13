@@ -19,7 +19,9 @@ pub struct Pool {
 impl Pool {
     pub fn new(sender: Sender<Message>) -> Self {
         let (jobs, queue) = unbounded::<Job>();
-        let workers       = std::thread::available_parallelism().map_or(4, |n| n.get()).clamp(4, 8);
+        let workers = std::thread::available_parallelism()
+            .map_or(4, |n| n.get())
+            .clamp(4, 8);
         for _ in 0..workers {
             let queue = queue.clone();
             std::thread::spawn(move || {
@@ -35,17 +37,29 @@ impl Pool {
         }
     }
 
-    pub fn spawn(&self, id: RequestId, work: impl FnOnce(&Sender<Message>) -> Value + Send + 'static) {
+    pub fn spawn(
+        &self,
+        id:   RequestId,
+        work: impl FnOnce(&Sender<Message>) -> Value + Send + 'static,
+    ) {
         self.inflight.lock().unwrap().insert(id.clone(), false);
         let (sender, inflight) = (self.sender.clone(), self.inflight.clone());
         let job                = move || {
             let cancelled = inflight.lock().unwrap().get(&id).copied().unwrap_or(false);
             let response  = if cancelled {
-                Response::new_err(id.clone(), ErrorCode::RequestCanceled as i32, "cancelled".into())
+                Response::new_err(
+                    id.clone(),
+                    ErrorCode::RequestCanceled as i32,
+                    "cancelled".into(),
+                )
             } else {
                 match catch_unwind(AssertUnwindSafe(|| work(&sender))) {
                     Ok(result) => Response::new_ok(id.clone(), result),
-                    Err(_) => Response::new_err(id.clone(), ErrorCode::InternalError as i32, "magic-formatter: internal error".into()),
+                    Err(_) => Response::new_err(
+                        id.clone(),
+                        ErrorCode::InternalError as i32,
+                        "magic-formatter: internal error".into(),
+                    ),
                 }
             };
             inflight.lock().unwrap().remove(&id);

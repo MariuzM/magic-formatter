@@ -34,7 +34,12 @@ const NON_LOCAL_PARENTS: &[&str] = &[
     "statement_label",
 ];
 
-fn pattern_bindings<'t>(node: Node<'t>, visible: Option<usize>, bare: bool, out: &mut Vec<(Node<'t>, usize)>) {
+fn pattern_bindings<'t>(
+    node:    Node<'t>,
+    visible: Option<usize>,
+    bare:    bool,
+    out:     &mut Vec<(Node<'t>, usize)>,
+) {
     let mut cursor = node.walk();
     for (i, child) in node.children(&mut cursor).enumerate() {
         let after_dot = child.prev_sibling().is_some_and(|p| p.kind() == ".");
@@ -71,7 +76,11 @@ impl Analysis for Swift {
         self.highlighter.get_or_init(|| {
             Highlighter::new(
                 &self.grammar(),
-                &format!("{}\n{}", tree_sitter_swift::HIGHLIGHTS_QUERY, include_str!("../queries/highlights.scm")),
+                &format!(
+                    "{}\n{}",
+                    tree_sitter_swift::HIGHLIGHTS_QUERY,
+                    include_str!("../queries/highlights.scm")
+                ),
                 Precedence::LastWins,
                 &[("constructor", "keyword")],
             )
@@ -98,18 +107,29 @@ impl Analysis for Swift {
         ]
     }
 
-    fn collect_definitions<'t>(&self, node: Node<'t>, _src: &[u8], out: &mut Vec<(Node<'t>, usize)>) {
+    fn collect_definitions<'t>(
+        &self,
+        node: Node<'t>,
+        _src: &[u8],
+        out:  &mut Vec<(Node<'t>, usize)>,
+    ) {
         match node.kind() {
             "parameter" | "lambda_parameter" => {
                 let mut cursor = node.walk();
-                if let Some(name) = node.children_by_field_name("name", &mut cursor).find(|c| c.kind() == "simple_identifier") {
+                if let Some(name) = node
+                    .children_by_field_name("name", &mut cursor)
+                    .find(|c| c.kind() == "simple_identifier")
+                {
                     out.push((name, name.start_byte()));
                 }
             }
             "if_statement" | "guard_statement" | "while_statement" => condition_bindings(node, out),
             "property_declaration" => {
                 let mut cursor = node.walk();
-                for pattern in node.children_by_field_name("name", &mut cursor).filter(|c| c.kind() == "pattern") {
+                for pattern in node
+                    .children_by_field_name("name", &mut cursor)
+                    .filter(|c| c.kind() == "pattern")
+                {
                     pattern_bindings(pattern, Some(node.end_byte()), true, out);
                 }
             }
@@ -148,7 +168,10 @@ impl Analysis for Swift {
     }
 
     fn implementation_kinds(&self) -> &'static [(&'static str, &'static str)] {
-        &[("class_declaration", "name"), ("function_declaration", "name")]
+        &[
+            ("class_declaration", "name"),
+            ("function_declaration", "name"),
+        ]
     }
 
     fn language_server(&self) -> bool {
@@ -189,13 +212,15 @@ impl Analysis for Swift {
 
     fn member_completions(
         &self,
-        tree: &Tree,
-        src: &str,
+        tree:   &Tree,
+        src:    &str,
         offset: usize,
-        _file: &Path,
+        _file:  &Path,
         _roots: &[PathBuf],
     ) -> Option<Vec<(String, SymbolKind)>> {
-        let dot      = word_start(src, offset).checked_sub(1).filter(|&d| src.as_bytes()[d] == b'.')?;
+        let dot = word_start(src, offset)
+            .checked_sub(1)
+            .filter(|&d| src.as_bytes()[d] == b'.')?;
         let receiver = src[..dot].strip_suffix("self")?;
         if receiver.ends_with(|c: char| c.is_alphanumeric() || c == '_') {
             return None;

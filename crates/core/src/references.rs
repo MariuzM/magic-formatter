@@ -38,10 +38,10 @@ pub fn symbol_at(lang: &dyn Analysis, tree: &Tree, src: &str, offset: usize) -> 
 }
 
 pub fn occurrences(
-    lang: &dyn Analysis,
-    tree: &Tree,
-    src: &str,
-    symbol: &Symbol,
+    lang:                &dyn Analysis,
+    tree:                &Tree,
+    src:                 &str,
+    symbol:              &Symbol,
     include_declaration: bool,
 ) -> Vec<(usize, usize)> {
     let bytes      = src.as_bytes();

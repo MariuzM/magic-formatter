@@ -64,11 +64,11 @@ pub trait Analysis: Send + Sync {
 
     fn import_definitions(
         &self,
-        _tree: &Tree,
-        _src: &str,
+        _tree:   &Tree,
+        _src:    &str,
         _offset: usize,
-        _file: &Path,
-        _roots: &[PathBuf],
+        _file:   &Path,
+        _roots:  &[PathBuf],
     ) -> Vec<(PathBuf, usize, usize)> {
         Vec::new()
     }
@@ -77,7 +77,12 @@ pub trait Analysis: Send + Sync {
         true
     }
 
-    fn implementations(&self, _tree: &Tree, _src: &str, _name: &str) -> Option<Vec<(usize, usize)>> {
+    fn implementations(
+        &self,
+        _tree: &Tree,
+        _src:  &str,
+        _name: &str,
+    ) -> Option<Vec<(usize, usize)>> {
         None
     }
 
@@ -137,11 +142,11 @@ pub trait Analysis: Send + Sync {
 
     fn member_completions(
         &self,
-        _tree: &Tree,
-        _src: &str,
+        _tree:   &Tree,
+        _src:    &str,
         _offset: usize,
-        _file: &Path,
-        _roots: &[PathBuf],
+        _file:   &Path,
+        _roots:  &[PathBuf],
     ) -> Option<Vec<(String, SymbolKind)>> {
         None
     }

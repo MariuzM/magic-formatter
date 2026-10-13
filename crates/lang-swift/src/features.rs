@@ -58,7 +58,9 @@ fn in_type(node: Node) -> bool {
 }
 
 fn header(decl: Node, src: &str, body: &str) -> String {
-    let end = decl.child_by_field_name(body).map_or(decl.end_byte(), |b| b.start_byte());
+    let end = decl
+        .child_by_field_name(body)
+        .map_or(decl.end_byte(), |b| b.start_byte());
     collapse_ws(&src[decl.start_byte()..end])
 }
 
@@ -73,7 +75,9 @@ fn parameters(decl: Node, src: &str) -> Vec<String> {
 
 fn bound_name(decl: Node) -> Option<Node> {
     let pattern = decl.child_by_field_name("name")?;
-    pattern.child_by_field_name("bound_identifier").or_else(|| (pattern.kind() == "simple_identifier").then_some(pattern))
+    pattern
+        .child_by_field_name("bound_identifier")
+        .or_else(|| (pattern.kind() == "simple_identifier").then_some(pattern))
 }
 
 fn is_static(decl: Node, src: &str) -> bool {
@@ -90,7 +94,9 @@ fn type_parameters(class: Node, src: &str) -> Vec<String> {
     if let Some(init) = children.iter().find(|c| c.kind() == "init_declaration") {
         return parameters(*init, src);
     }
-    let is_struct = class.child_by_field_name("declaration_kind").is_some_and(|k| text(k, src) == "struct");
+    let is_struct = class
+        .child_by_field_name("declaration_kind")
+        .is_some_and(|k| text(k, src) == "struct");
     if !is_struct {
         return Vec::new();
     }
@@ -100,7 +106,9 @@ fn type_parameters(class: Node, src: &str) -> Vec<String> {
         .filter_map(|p| {
             let name       = bound_name(*p)?;
             let mut cursor = p.walk();
-            let ty         = p.named_children(&mut cursor).find(|c| c.kind() == "type_annotation");
+            let ty = p
+                .named_children(&mut cursor)
+                .find(|c| c.kind() == "type_annotation");
             Some(match ty {
                 Some(t) => collapse_ws(&format!("{}{}", text(name, src), text(t, src))),
                 None => text(name, src).to_string(),
@@ -119,7 +127,10 @@ pub fn symbol(node: Node, src: &str) -> Option<SymbolInfo> {
     match node.kind() {
         "class_declaration" => {
             let name = node.child_by_field_name("name")?;
-            let kind = match node.child_by_field_name("declaration_kind").map(|k| text(k, src)) {
+            let kind = match node
+                .child_by_field_name("declaration_kind")
+                .map(|k| text(k, src))
+            {
                 Some("struct") => SymbolKind::Struct,
                 Some("enum") => SymbolKind::Enum,
                 Some("extension") => SymbolKind::Namespace,
@@ -127,19 +138,27 @@ pub fn symbol(node: Node, src: &str) -> Option<SymbolInfo> {
             };
             Some(info(name, kind, None))
         }
-        "protocol_declaration" => Some(info(node.child_by_field_name("name")?, SymbolKind::Interface, None)),
+        "protocol_declaration" => Some(info(
+            node.child_by_field_name("name")?,
+            SymbolKind::Interface,
+            None,
+        )),
         "function_declaration" | "protocol_function_declaration" => {
             let name   = node.child_by_field_name("name")?;
             let kind   = if in_type(node) { SymbolKind::Method } else { SymbolKind::Function };
             let detail = format!("({})", parameters(node, src).join(", "));
             Some(info(name, kind, Some(detail)))
         }
-        "init_declaration" => {
-            Some(info(node.child_by_field_name("name")?, SymbolKind::Constructor, Some(format!("({})", parameters(node, src).join(", ")))))
-        }
+        "init_declaration" => Some(info(
+            node.child_by_field_name("name")?,
+            SymbolKind::Constructor,
+            Some(format!("({})", parameters(node, src).join(", "))),
+        )),
         "subscript_declaration" => {
             let mut cursor = node.walk();
-            let keyword    = node.children(&mut cursor).find(|c| c.kind() == "subscript")?;
+            let keyword = node
+                .children(&mut cursor)
+                .find(|c| c.kind() == "subscript")?;
             Some(info(keyword, SymbolKind::Method, None))
         }
         "property_declaration" | "protocol_property_declaration" => {
@@ -160,8 +179,16 @@ pub fn symbol(node: Node, src: &str) -> Option<SymbolInfo> {
             };
             Some(info(name, kind, detail))
         }
-        "enum_entry" => Some(info(node.child_by_field_name("name")?, SymbolKind::EnumMember, None)),
-        "typealias_declaration" => Some(info(node.child_by_field_name("name")?, SymbolKind::TypeParameter, None)),
+        "enum_entry" => Some(info(
+            node.child_by_field_name("name")?,
+            SymbolKind::EnumMember,
+            None,
+        )),
+        "typealias_declaration" => Some(info(
+            node.child_by_field_name("name")?,
+            SymbolKind::TypeParameter,
+            None,
+        )),
         _ => None,
     }
 }
@@ -174,7 +201,9 @@ pub fn describe(node: Node, src: &str) -> Option<Description> {
         docs,
         params: Vec::new(),
     };
-    let named = decl.child_by_field_name("name").is_some_and(|n| n == node || n == parent);
+    let named = decl
+        .child_by_field_name("name")
+        .is_some_and(|n| n == node || n == parent);
     match decl.kind() {
         "function_declaration" | "protocol_function_declaration" if named => Some(Description {
             signature: header(decl, src, "body"),
@@ -187,12 +216,17 @@ pub fn describe(node: Node, src: &str) -> Option<Description> {
             params:    type_parameters(decl, src),
         }),
         "typealias_declaration" | "enum_entry" if named => Some(simple(collapse_ws(text(decl, src)), docs(decl, src))),
-        "parameter" | "lambda_parameter" if named => Some(simple(format!("(parameter) {}", collapse_ws(text(decl, src))), None)),
+        "parameter" | "lambda_parameter" if named => Some(simple(
+            format!("(parameter) {}", collapse_ws(text(decl, src))),
+            None,
+        )),
         "pattern" if decl.child_by_field_name("bound_identifier") == Some(node) => {
             let owner = decl.parent()?;
             match owner.kind() {
                 "property_declaration" | "protocol_property_declaration" => {
-                    let end = owner.child_by_field_name("computed_value").map_or(owner.end_byte(), |c| c.start_byte());
+                    let end = owner
+                        .child_by_field_name("computed_value")
+                        .map_or(owner.end_byte(), |c| c.start_byte());
                     let sig = first_line(src[owner.start_byte()..end].trim_end(), 120);
                     Some(simple(sig, docs(owner, src)))
                 }
@@ -213,11 +247,16 @@ pub fn call_at<'t>(node: Node<'t>, offset: usize) -> Option<Call<'t>> {
             && n.start_byte() < offset
             && (offset < n.end_byte() || n.child(n.child_count().wrapping_sub(1) as _).is_none_or(|c| c.kind() != ")" || c.is_missing()))
     })?;
-    let call   = args.parent()?.parent().filter(|c| c.kind() == "call_expression")?;
+    let call = args
+        .parent()?
+        .parent()
+        .filter(|c| c.kind() == "call_expression")?;
     let target = call.child(0)?;
     let callee = match target.kind() {
         "simple_identifier" => target,
-        "navigation_expression" => target.child_by_field_name("suffix")?.child_by_field_name("suffix")?,
+        "navigation_expression" => target
+            .child_by_field_name("suffix")?
+            .child_by_field_name("suffix")?,
         _ => return None,
     };
     Some(Call { callee, args })
@@ -245,7 +284,9 @@ fn declared<'s>(tree: &Tree, src: &'s str) -> Declared<'s> {
             }
             "enum_entry" => {
                 let mut c = node.walk();
-                out.cases.extend(node.children_by_field_name("name", &mut c).map(|n| text(n, src)));
+                out.cases.extend(
+                    node.children_by_field_name("name", &mut c).map(|n| text(n, src)),
+                );
             }
             "type_parameter" => {
                 let scope = node.parent().and_then(|p| p.parent());
@@ -281,7 +322,16 @@ pub fn refine(tree: &Tree, src: &str, spans: &mut [Span], locals: &Locals) {
         "enumMember",
         "typeParameter",
     ];
-    let [variable, function, method, property, ty, namespace, member, generic] = names.map(token_type);
+    let [
+        variable,
+        function,
+        method,
+        property,
+        ty,
+        namespace,
+        member,
+        generic,
+    ] = names.map(token_type);
 
     let found                                                = declared(tree, src);
     let mut cursor                                           = SpanCursor::new(tree);
@@ -296,11 +346,18 @@ pub fn refine(tree: &Tree, src: &str, spans: &mut [Span], locals: &Locals) {
         let kind   = span.kind.ty;
         if found.modules.contains(&name) && (kind == ty || kind == variable) {
             span.kind.ty = namespace;
-        } else if node.kind() == "type_identifier" && found.generics.iter().any(|&(g, s, e)| g == name && s <= span.start && span.end <= e)
+        } else if node.kind() == "type_identifier"
+            && found
+                .generics
+                .iter()
+                .any(|&(g, s, e)| g == name && s <= span.start && span.end <= e)
         {
             span.kind.ty = generic;
         } else if found.cases.contains(&name)
-            && matches!(parent, "navigation_suffix" | "prefix_expression" | "pattern" | "enum_entry")
+            && matches!(
+                parent,
+                "navigation_suffix" | "prefix_expression" | "pattern" | "enum_entry"
+            )
             && [variable, function, method, property].contains(&kind)
         {
             span.kind.ty = member;
@@ -308,9 +365,15 @@ pub fn refine(tree: &Tree, src: &str, spans: &mut [Span], locals: &Locals) {
             && (kind == variable || kind == function)
             && parent != "navigation_suffix"
             && locals.resolve(name, span.start).is_none()
-            && let Some(&body) = cursor.ancestors().iter().rev().find(|n| TYPE_BODIES.contains(&n.kind()))
+            && let Some(&body) = cursor
+                .ancestors()
+                .iter()
+                .rev()
+                .find(|n| TYPE_BODIES.contains(&n.kind()))
         {
-            let members = cache.entry(body.id()).or_insert_with(|| body_members(body, src));
+            let members = cache
+                .entry(body.id())
+                .or_insert_with(|| body_members(body, src));
             match members.iter().find(|(m, _)| m == name).map(|(_, k)| *k) {
                 Some(SymbolKind::Property) => span.kind.ty = property,
                 Some(SymbolKind::Method) => span.kind.ty = method,
@@ -321,7 +384,9 @@ pub fn refine(tree: &Tree, src: &str, spans: &mut [Span], locals: &Locals) {
 }
 
 pub fn self_members(node: Node, src: &str) -> Vec<(String, SymbolKind)> {
-    match std::iter::successors(Some(node), |n| n.parent()).find(|n| TYPE_BODIES.contains(&n.kind())) {
+    match std::iter::successors(Some(node), |n| n.parent())
+        .find(|n| TYPE_BODIES.contains(&n.kind()))
+    {
         Some(body) => body_members(body, src),
         None => Vec::new(),
     }
@@ -331,7 +396,9 @@ fn body_members(body: Node, src: &str) -> Vec<(String, SymbolKind)> {
     let mut cursor = body.walk();
     body.named_children(&mut cursor)
         .filter_map(|c| match c.kind() {
-            "function_declaration" => c.child_by_field_name("name").map(|n| (text(n, src).to_string(), SymbolKind::Method)),
+            "function_declaration" => c
+                .child_by_field_name("name")
+                .map(|n| (text(n, src).to_string(), SymbolKind::Method)),
             "property_declaration" => bound_name(c).map(|n| (text(n, src).to_string(), SymbolKind::Property)),
             _ => None,
         })

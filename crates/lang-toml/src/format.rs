@@ -79,8 +79,12 @@ fn first_error(node: Node) -> Option<Node> {
 
 fn parse(src: &str) -> Result<Tree, String> {
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_toml_ng::LANGUAGE.into()).map_err(|e| e.to_string())?;
-    parser.parse(src, None).ok_or_else(|| "parser failed".into())
+    parser
+        .set_language(&tree_sitter_toml_ng::LANGUAGE.into())
+        .map_err(|e| e.to_string())?;
+    parser
+        .parse(src, None)
+        .ok_or_else(|| "parser failed".into())
 }
 
 fn is_open(kind: &str) -> bool {
@@ -271,7 +275,8 @@ impl<'a, 't> Formatter<'a, 't> {
             }
         }
         for li in deferred.into_iter().rev() {
-            let next        = (li + 1..lines.len()).find(|&l| (lines[l].first..=lines[l].last).any(|k| !self.toks[k].comment));
+            let next = (li + 1..lines.len())
+                .find(|&l| (lines[l].first..=lines[l].last).any(|k| !self.toks[k].comment));
             lines[li].level = match next {
                 Some(l) if is_close(self.toks[lines[l].first].kind) => lines[l].level + 1,
                 Some(l) => lines[l].level,
@@ -302,11 +307,16 @@ impl<'a, 't> Formatter<'a, 't> {
             if (open + 1..=close).all(|k| self.brk[k] == Break::None) {
                 continue;
             }
-            let blocked = (open..=close).any(|k| self.toks[k].comment || self.toks[k].multiline || self.forced[k]);
+            let blocked = (open..=close)
+                .any(|k| self.toks[k].comment || self.toks[k].multiline || self.forced[k]);
             if blocked {
                 continue;
             }
-            let li       = self.lines.iter().position(|l| l.first <= open && open <= l.last).unwrap();
+            let li = self
+                .lines
+                .iter()
+                .position(|l| l.first <= open && open <= l.last)
+                .unwrap();
             let first    = self.lines[li].first;
             let mut last = close;
             while last + 1 < self.toks.len() && self.brk[last + 1] == Break::None {
@@ -327,10 +337,14 @@ impl<'a, 't> Formatter<'a, 't> {
         for l in &self.lines {
             let eq = (l.first..=l.last).find(|&k| self.toks[k].kind == "=");
             let ok = eq.filter(|&e| {
-                let node        = self.toks[e].node;
-                let Some(pair)  = node.parent() else { return false };
-                let Some(value) = node.next_sibling() else { return false };
-                let opener      = value.kind() == "array" && self.toks[l.last].start == value.start_byte();
+                let node       = self.toks[e].node;
+                let Some(pair) = node.parent() else {
+                    return false;
+                };
+                let Some(value) = node.next_sibling() else {
+                    return false;
+                };
+                let opener = value.kind() == "array" && self.toks[l.last].start == value.start_byte();
                 pair.parent().is_some_and(|p| STATEMENT_PARENTS.contains(&p.kind()))
                     && pair.start_byte() == self.toks[l.first].start
                     && (value.end_byte() <= self.toks[l.last].end || opener)
@@ -350,8 +364,10 @@ impl<'a, 't> Formatter<'a, 't> {
                 lj += 1;
             }
             if lj > li {
-                let widths: Vec<usize> = (li..=lj).map(|l| self.width(self.lines[l].first, eqs[l].unwrap() - 1)).collect();
-                let target             = *widths.iter().max().unwrap();
+                let widths: Vec<usize> = (li..=lj)
+                    .map(|l| self.width(self.lines[l].first, eqs[l].unwrap() - 1))
+                    .collect();
+                let target = *widths.iter().max().unwrap();
                 for (l, w) in (li..=lj).zip(widths) {
                     self.padding[eqs[l].unwrap()] = target - w;
                 }
@@ -392,7 +408,10 @@ fn strip_ws(s: &str) -> impl Iterator<Item = char> + '_ {
 pub fn format(src: &str, opts: &Options) -> Result<String, String> {
     let tree = parse(src)?;
     if let Some(e) = first_error(tree.root_node()) {
-        return Err(format!("syntax error on line {}", e.start_position().row + 1));
+        return Err(format!(
+            "syntax error on line {}",
+            e.start_position().row + 1
+        ));
     }
     let toks = tokens(&tree, src);
     if toks.is_empty() {

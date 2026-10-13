@@ -39,9 +39,14 @@ impl Document {
         for change in changes {
             match change.range {
                 Some(r) => {
-                    let start = self.lines.offset(&self.text, r.start.line, r.start.character);
-                    let end   = self.lines.offset(&self.text, r.end.line, r.end.character).max(start);
-                    let edit  = InputEdit {
+                    let start = self
+                        .lines
+                        .offset(&self.text, r.start.line, r.start.character);
+                    let end = self
+                        .lines
+                        .offset(&self.text, r.end.line, r.end.character)
+                        .max(start);
+                    let edit = InputEdit {
                         start_byte:       start,
                         old_end_byte:     end,
                         new_end_byte:     start + change.text.len(),

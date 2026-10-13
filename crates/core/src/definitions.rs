@@ -2,12 +2,15 @@ use tree_sitter::{Node, Tree};
 
 fn base_name(mut node: Node) -> Node {
     loop {
-        let next = ["name", "type", "bound_identifier"].iter().find_map(|f| node.child_by_field_name(f)).or_else(|| {
-            let mut cursor = node.walk();
-            (node.kind() == "user_type")
-                .then(|| node.named_children(&mut cursor).filter(|c| c.kind() == "type_identifier").last())
-                .flatten()
-        });
+        let next = ["name", "type", "bound_identifier"]
+            .iter()
+            .find_map(|f| node.child_by_field_name(f))
+            .or_else(|| {
+                let mut cursor = node.walk();
+                (node.kind() == "user_type")
+                    .then(|| node.named_children(&mut cursor).filter(|c| c.kind() == "type_identifier").last())
+                    .flatten()
+            });
         match next {
             Some(n) => node = n,
             None => return node,

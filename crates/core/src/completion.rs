@@ -44,7 +44,12 @@ fn is_ident(c: char) -> bool {
 }
 
 pub fn word_start(src: &str, offset: usize) -> usize {
-    src[..offset].char_indices().rev().take_while(|(_, c)| is_ident(*c)).last().map_or(offset, |(i, _)| i)
+    src[..offset]
+        .char_indices()
+        .rev()
+        .take_while(|(_, c)| is_ident(*c))
+        .last()
+        .map_or(offset, |(i, _)| i)
 }
 
 pub fn is_member_access(src: &str, offset: usize) -> bool {
@@ -69,7 +74,13 @@ impl Items {
     }
 }
 
-pub fn complete(lang: &dyn Analysis, tree: &Tree, src: &str, offset: usize, extra: Vec<Item>) -> Vec<Item> {
+pub fn complete(
+    lang:   &dyn Analysis,
+    tree:   &Tree,
+    src:    &str,
+    offset: usize,
+    extra:  Vec<Item>,
+) -> Vec<Item> {
     let mut items = Items {
         seen: HashSet::new(),
         out:  Vec::new(),
@@ -82,7 +93,11 @@ pub fn complete(lang: &dyn Analysis, tree: &Tree, src: &str, offset: usize, extr
     let mut flat = Vec::new();
     flatten(&symbols, None, &mut flat);
     for (symbol, container) in flat.iter().filter(|(s, _)| !s.kind.is_member()) {
-        items.push(&symbol.name, ItemKind::Symbol(symbol.kind), container.map(String::from));
+        items.push(
+            &symbol.name,
+            ItemKind::Symbol(symbol.kind),
+            container.map(String::from),
+        );
     }
     for keyword in lang.keywords() {
         items.push(&keyword, ItemKind::Keyword, None);
@@ -99,7 +114,13 @@ pub fn complete(lang: &dyn Analysis, tree: &Tree, src: &str, offset: usize, extr
     items.out
 }
 
-pub fn members(lang: &dyn Analysis, tree: &Tree, src: &str, offset: usize, extra: Vec<Item>) -> Vec<Item> {
+pub fn members(
+    lang:   &dyn Analysis,
+    tree:   &Tree,
+    src:    &str,
+    offset: usize,
+    extra:  Vec<Item>,
+) -> Vec<Item> {
     let mut items = Items {
         seen: HashSet::new(),
         out:  Vec::new(),
@@ -109,7 +130,11 @@ pub fn members(lang: &dyn Analysis, tree: &Tree, src: &str, offset: usize, extra
     let mut flat = Vec::new();
     flatten(&symbols, None, &mut flat);
     for (symbol, container) in flat.iter().filter(|(s, _)| s.kind.is_member()) {
-        items.push(&symbol.name, ItemKind::Symbol(symbol.kind), container.map(String::from));
+        items.push(
+            &symbol.name,
+            ItemKind::Symbol(symbol.kind),
+            container.map(String::from),
+        );
     }
     for item in extra {
         items.push(&item.label, item.kind, item.detail);

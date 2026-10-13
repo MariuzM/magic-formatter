@@ -23,7 +23,9 @@ enum Binding {
 
 fn parse(src: &str) -> Option<Tree> {
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_python::LANGUAGE.into()).ok()?;
+    parser
+        .set_language(&tree_sitter_python::LANGUAGE.into())
+        .ok()?;
     parser.parse(src, None)
 }
 
@@ -50,7 +52,10 @@ fn interpreters(roots: &[PathBuf]) -> Vec<PathBuf> {
 fn search_paths(roots: &[PathBuf]) -> &'static [PathBuf] {
     SEARCH_PATHS.get_or_init(|| {
         for python in interpreters(roots) {
-            let Ok(res) = Command::new(&python).args(["-c", "import sys\nfor p in sys.path: print(p)"]).output() else {
+            let Ok(res) = Command::new(&python)
+                .args(["-c", "import sys\nfor p in sys.path: print(p)"])
+                .output()
+            else {
                 continue;
             };
             if res.status.success() {
@@ -104,8 +109,11 @@ fn bases(file: &Path, roots: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 fn resolve_module(module: &str, file: &Path, roots: &[PathBuf]) -> Option<PathBuf> {
-    let dots                = module.chars().take_while(|c| *c == '.').count();
-    let segments: Vec<&str> = module[dots..].split('.').filter(|s| !s.is_empty()).collect();
+    let dots = module.chars().take_while(|c| *c == '.').count();
+    let segments: Vec<&str> = module[dots..]
+        .split('.')
+        .filter(|s| !s.is_empty())
+        .collect();
     if dots > 0 {
         let mut base = file.parent()?;
         for _ in 1..dots {
@@ -113,7 +121,9 @@ fn resolve_module(module: &str, file: &Path, roots: &[PathBuf]) -> Option<PathBu
         }
         return module_file(base, &segments);
     }
-    bases(file, roots).iter().find_map(|b| module_file(b, &segments))
+    bases(file, roots)
+        .iter()
+        .find_map(|b| module_file(b, &segments))
 }
 
 fn targets(node: Node, out: &mut Vec<(usize, usize)>, src: &str, name: &str) {
@@ -136,13 +146,18 @@ fn import_bindings(stmt: Node, src: &str, name: &str, out: &mut Vec<Binding>) {
             for item in stmt.children_by_field_name("name", &mut cursor) {
                 match item.kind() {
                     "dotted_name" => {
-                        if item.named_child(0).is_some_and(|first| text(first, src) == name) {
+                        if item
+                            .named_child(0)
+                            .is_some_and(|first| text(first, src) == name)
+                        {
                             out.push(Binding::Module(name.to_string()));
                         }
                     }
                     "aliased_import" => {
-                        if let (Some(module), Some(alias)) = (item.child_by_field_name("name"), item.child_by_field_name("alias"))
-                            && text(alias, src) == name
+                        if let (Some(module), Some(alias)) = (
+                            item.child_by_field_name("name"),
+                            item.child_by_field_name("alias"),
+                        ) && text(alias, src) == name
                         {
                             out.push(Binding::Module(text(module, src).to_string()));
                         }
@@ -152,15 +167,24 @@ fn import_bindings(stmt: Node, src: &str, name: &str, out: &mut Vec<Binding>) {
             }
         }
         "import_from_statement" => {
-            let Some(module) = stmt.child_by_field_name("module_name").map(|m| text(m, src).to_string()) else {
+            let Some(module) = stmt
+                .child_by_field_name("module_name")
+                .map(|m| text(m, src).to_string())
+            else {
                 return;
             };
-            if stmt.named_children(&mut cursor).any(|c| c.kind() == "wildcard_import") {
+            if stmt
+                .named_children(&mut cursor)
+                .any(|c| c.kind() == "wildcard_import")
+            {
                 out.push(Binding::Wildcard(module.clone()));
             }
             for item in stmt.children_by_field_name("name", &mut cursor) {
                 let (orig, alias) = match item.kind() {
-                    "aliased_import" => (item.child_by_field_name("name"), item.child_by_field_name("alias")),
+                    "aliased_import" => (
+                        item.child_by_field_name("name"),
+                        item.child_by_field_name("alias"),
+                    ),
                     _ => (Some(item), Some(item)),
                 };
                 if let (Some(orig), Some(alias)) = (orig, alias)
@@ -179,13 +203,19 @@ fn top_level(node: Node, src: &str, name: &str, out: &mut Vec<Binding>) {
     for child in node.named_children(&mut cursor) {
         match child.kind() {
             "function_definition" | "class_definition" => {
-                if let Some(n) = child.child_by_field_name("name").filter(|n| text(*n, src) == name) {
+                if let Some(n) = child
+                    .child_by_field_name("name")
+                    .filter(|n| text(*n, src) == name)
+                {
                     out.push(Binding::Def(n.start_byte(), n.end_byte()));
                 }
             }
             "expression_statement" => {
                 let mut c = child.walk();
-                for assignment in child.named_children(&mut c).filter(|a| a.kind() == "assignment") {
+                for assignment in child
+                    .named_children(&mut c)
+                    .filter(|a| a.kind() == "assignment")
+                {
                     let mut hits = Vec::new();
                     let mut cur  = Some(assignment);
                     while let Some(a) = cur.filter(|a| a.kind() == "assignment") {
@@ -230,11 +260,22 @@ fn names(node: Node, src: &str, out: &mut Vec<(String, SymbolKind)>) {
     for child in node.named_children(&mut cursor) {
         let name = |n: Node| text(n, src).to_string();
         match child.kind() {
-            "function_definition" => out.extend(child.child_by_field_name("name").map(|n| (name(n), SymbolKind::Function))),
-            "class_definition" => out.extend(child.child_by_field_name("name").map(|n| (name(n), SymbolKind::Class))),
+            "function_definition" => out.extend(
+                child
+                    .child_by_field_name("name")
+                    .map(|n| (name(n), SymbolKind::Function)),
+            ),
+            "class_definition" => out.extend(
+                child
+                    .child_by_field_name("name")
+                    .map(|n| (name(n), SymbolKind::Class)),
+            ),
             "expression_statement" => {
                 let mut c = child.walk();
-                for assignment in child.named_children(&mut c).filter(|a| a.kind() == "assignment") {
+                for assignment in child
+                    .named_children(&mut c)
+                    .filter(|a| a.kind() == "assignment")
+                {
                     let mut found = Vec::new();
                     if let Some(left) = assignment.child_by_field_name("left") {
                         identifiers(left, &mut found);
@@ -267,7 +308,10 @@ fn names(node: Node, src: &str, out: &mut Vec<(String, SymbolKind)>) {
 }
 
 fn module_names(file: &Path) -> Vec<(String, SymbolKind)> {
-    let Some(src) = fs::read(file).ok().map(|b| String::from_utf8_lossy(&b).into_owned()) else {
+    let Some(src) = fs::read(file)
+        .ok()
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+    else {
         return Vec::new();
     };
     let mut out = Vec::new();
@@ -278,8 +322,12 @@ fn module_names(file: &Path) -> Vec<(String, SymbolKind)> {
         && let Some(entries) = file.parent().and_then(|d| fs::read_dir(d).ok())
     {
         for entry in entries.flatten() {
-            let path   = entry.path();
-            let name   = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default().to_string();
+            let path = entry.path();
+            let name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default()
+                .to_string();
             let module = if path.is_dir() {
                 path.join("__init__.py").is_file()
             } else {
@@ -293,9 +341,19 @@ fn module_names(file: &Path) -> Vec<(String, SymbolKind)> {
     out
 }
 
-pub fn members(tree: &Tree, src: &str, offset: usize, file: &Path, roots: &[PathBuf]) -> Option<Vec<(String, SymbolKind)>> {
-    let dot             = word_start(src, offset).checked_sub(1).filter(|&d| src.as_bytes()[d] == b'.')?;
-    let start           = src[..dot].rfind(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.')).map_or(0, |i| i + 1);
+pub fn members(
+    tree:   &Tree,
+    src:    &str,
+    offset: usize,
+    file:   &Path,
+    roots:  &[PathBuf],
+) -> Option<Vec<(String, SymbolKind)>> {
+    let dot = word_start(src, offset)
+        .checked_sub(1)
+        .filter(|&d| src.as_bytes()[d] == b'.')?;
+    let start = src[..dot]
+        .rfind(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.'))
+        .map_or(0, |i| i + 1);
     let path: Vec<&str> = src[start..dot].split('.').collect();
     if path.iter().any(|s| s.is_empty()) {
         return None;
@@ -328,12 +386,22 @@ fn all_imports(node: Node, src: &str, name: &str, out: &mut Vec<Binding>) {
     }
 }
 
-fn resolve_symbol(file: &Path, name: &str, roots: &[PathBuf], depth: usize) -> Vec<(PathBuf, usize, usize)> {
-    let Some(src) = fs::read(file).ok().map(|b| String::from_utf8_lossy(&b).into_owned()) else {
+fn resolve_symbol(
+    file:  &Path,
+    name:  &str,
+    roots: &[PathBuf],
+    depth: usize,
+) -> Vec<(PathBuf, usize, usize)> {
+    let Some(src) = fs::read(file)
+        .ok()
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+    else {
         return Vec::new();
     };
-    let Some(tree) = parse(&src) else { return Vec::new() };
-    let mut found  = Vec::new();
+    let Some(tree) = parse(&src) else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
     top_level(tree.root_node(), &src, name, &mut found);
 
     let defs: Vec<(PathBuf, usize, usize)> = found
@@ -349,7 +417,9 @@ fn resolve_symbol(file: &Path, name: &str, roots: &[PathBuf], depth: usize) -> V
     for binding in &found {
         let hit = match binding {
             Binding::From(module, orig) => resolve_from(module, orig, file, roots, depth + 1),
-            Binding::Module(module) => resolve_module(module, file, roots).map(|p| vec![(p, 0, 0)]).unwrap_or_default(),
+            Binding::Module(module) => resolve_module(module, file, roots)
+                .map(|p| vec![(p, 0, 0)])
+                .unwrap_or_default(),
             _ => Vec::new(),
         };
         if !hit.is_empty() {
@@ -377,18 +447,32 @@ fn join(module: &str, name: &str) -> String {
     if module.ends_with('.') { format!("{module}{name}") } else { format!("{module}.{name}") }
 }
 
-fn resolve_from(module: &str, name: &str, file: &Path, roots: &[PathBuf], depth: usize) -> Vec<(PathBuf, usize, usize)> {
+fn resolve_from(
+    module: &str,
+    name:   &str,
+    file:   &Path,
+    roots:  &[PathBuf],
+    depth:  usize,
+) -> Vec<(PathBuf, usize, usize)> {
     let Some(target) = resolve_module(module, file, roots) else {
-        return resolve_module(&join(module, name), file, roots).map(|p| vec![(p, 0, 0)]).unwrap_or_default();
+        return resolve_module(&join(module, name), file, roots)
+            .map(|p| vec![(p, 0, 0)])
+            .unwrap_or_default();
     };
     let hit = resolve_symbol(&target, name, roots, depth);
     if hit.is_empty() { vec![(target, 0, 0)] } else { hit }
 }
 
-fn resolve_binding(binding: &Binding, file: &Path, roots: &[PathBuf]) -> Vec<(PathBuf, usize, usize)> {
+fn resolve_binding(
+    binding: &Binding,
+    file:    &Path,
+    roots:   &[PathBuf],
+) -> Vec<(PathBuf, usize, usize)> {
     match binding {
         Binding::From(module, orig) => resolve_from(module, orig, file, roots, 0),
-        Binding::Module(module) => resolve_module(module, file, roots).map(|p| vec![(p, 0, 0)]).unwrap_or_default(),
+        Binding::Module(module) => resolve_module(module, file, roots)
+            .map(|p| vec![(p, 0, 0)])
+            .unwrap_or_default(),
         _ => Vec::new(),
     }
 }
@@ -419,9 +503,20 @@ fn module_of(stmt: Node, src: &str) -> Option<String> {
     stmt.child_by_field_name("module_name").map(|m| text(m, src).to_string())
 }
 
-fn import_site(node: Node, src: &str, file: &Path, roots: &[PathBuf]) -> Option<Vec<(PathBuf, usize, usize)>> {
+fn import_site(
+    node:  Node,
+    src:   &str,
+    file:  &Path,
+    roots: &[PathBuf],
+) -> Option<Vec<(PathBuf, usize, usize)>> {
     let parent = node.parent()?;
-    let module = |m: String| Some(resolve_module(&m, file, roots).map(|p| vec![(p, 0, 0)]).unwrap_or_default());
+    let module = |m: String| {
+        Some(
+            resolve_module(&m, file, roots)
+                .map(|p| vec![(p, 0, 0)])
+                .unwrap_or_default(),
+        )
+    };
     match parent.kind() {
         "dotted_name" => {
             let owner = parent.parent()?;
@@ -433,12 +528,21 @@ fn import_site(node: Node, src: &str, file: &Path, roots: &[PathBuf]) -> Option<
             let path = prefix(parent, node, src);
             match (owner.kind(), stmt.kind()) {
                 ("relative_import", _) => {
-                    let dots = owner.named_child(0).filter(|p| p.kind() == "import_prefix").map_or("", |p| text(p, src));
+                    let dots = owner
+                        .named_child(0)
+                        .filter(|p| p.kind() == "import_prefix")
+                        .map_or("", |p| text(p, src));
                     module(format!("{dots}{path}"))
                 }
                 (_, "import_statement") => module(path),
                 (_, "import_from_statement") if stmt.child_by_field_name("module_name") == Some(parent) => module(path),
-                (_, "import_from_statement") => Some(resolve_from(&module_of(stmt, src)?, text(parent, src), file, roots, 0)),
+                (_, "import_from_statement") => Some(resolve_from(
+                    &module_of(stmt, src)?,
+                    text(parent, src),
+                    file,
+                    roots,
+                    0,
+                )),
                 _ => None,
             }
         }
@@ -447,7 +551,13 @@ fn import_site(node: Node, src: &str, file: &Path, roots: &[PathBuf]) -> Option<
             let stmt = parent.parent()?;
             match stmt.kind() {
                 "import_statement" => module(text(orig, src).to_string()),
-                "import_from_statement" => Some(resolve_from(&module_of(stmt, src)?, text(orig, src), file, roots, 0)),
+                "import_from_statement" => Some(resolve_from(
+                    &module_of(stmt, src)?,
+                    text(orig, src),
+                    file,
+                    roots,
+                    0,
+                )),
                 _ => None,
             }
         }
@@ -465,11 +575,19 @@ fn attribute_sites(root: Node, src: &str, name: &str) -> Vec<(usize, usize)> {
             && let Some(left) = node.child_by_field_name("left")
         {
             let target = match left.kind() {
-                "attribute" if left.child_by_field_name("object").is_some_and(|o| matches!(text(o, src), "self" | "cls")) => {
+                "attribute"
+                    if left
+                        .child_by_field_name("object")
+                        .is_some_and(|o| matches!(text(o, src), "self" | "cls")) =>
+                {
                     left.child_by_field_name("attribute")
                 }
                 "identifier"
-                    if node.parent().and_then(|s| s.parent()).and_then(|b| b.parent()).is_some_and(|c| c.kind() == "class_definition") =>
+                    if node
+                        .parent()
+                        .and_then(|s| s.parent())
+                        .and_then(|b| b.parent())
+                        .is_some_and(|c| c.kind() == "class_definition") =>
                 {
                     Some(left)
                 }
@@ -503,13 +621,22 @@ fn attribute_sites(root: Node, src: &str, name: &str) -> Vec<(usize, usize)> {
     if init.is_empty() { other } else { init }
 }
 
-fn usage(tree: &Tree, node: Node, src: &str, file: &Path, roots: &[PathBuf]) -> Vec<(PathBuf, usize, usize)> {
+fn usage(
+    tree:  &Tree,
+    node:  Node,
+    src:   &str,
+    file:  &Path,
+    roots: &[PathBuf],
+) -> Vec<(PathBuf, usize, usize)> {
     let root   = tree.root_node();
     let name   = text(node, src);
     let parent = node.parent();
 
-    if let Some(attr) = parent.filter(|p| p.kind() == "attribute" && p.child_by_field_name("attribute") == Some(node))
-        && let Some(path) = attr.child_by_field_name("object").and_then(|o| dotted_path(o, src))
+    if let Some(attr) = parent
+        .filter(|p| p.kind() == "attribute" && p.child_by_field_name("attribute") == Some(node))
+        && let Some(path) = attr
+            .child_by_field_name("object")
+            .and_then(|o| dotted_path(o, src))
     {
         let mut bindings = Vec::new();
         all_imports(root, src, &path[0], &mut bindings);
@@ -527,7 +654,10 @@ fn usage(tree: &Tree, node: Node, src: &str, file: &Path, roots: &[PathBuf]) -> 
         if !bindings.is_empty() {
             return Vec::new();
         }
-        return attribute_sites(root, src, name).into_iter().map(|(s, e)| (file.to_path_buf(), s, e)).collect();
+        return attribute_sites(root, src, name)
+            .into_iter()
+            .map(|(s, e)| (file.to_path_buf(), s, e))
+            .collect();
     }
 
     let locals = Locals::collect(&PYTHON, tree, src);
@@ -546,10 +676,20 @@ fn usage(tree: &Tree, node: Node, src: &str, file: &Path, roots: &[PathBuf]) -> 
     }
     let mut bindings = Vec::new();
     all_imports(root, src, name, &mut bindings);
-    bindings.iter().map(|b| resolve_binding(b, file, roots)).find(|hit| !hit.is_empty()).unwrap_or_default()
+    bindings
+        .iter()
+        .map(|b| resolve_binding(b, file, roots))
+        .find(|hit| !hit.is_empty())
+        .unwrap_or_default()
 }
 
-pub fn definitions(tree: &Tree, src: &str, offset: usize, file: &Path, roots: &[PathBuf]) -> Vec<(PathBuf, usize, usize)> {
+pub fn definitions(
+    tree:   &Tree,
+    src:    &str,
+    offset: usize,
+    file:   &Path,
+    roots:  &[PathBuf],
+) -> Vec<(PathBuf, usize, usize)> {
     let root = tree.root_node();
     let Some(node) = [offset, offset.saturating_sub(1)]
         .into_iter()

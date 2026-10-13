@@ -20,8 +20,12 @@ struct Line {
 
 fn parse(src: &str) -> Result<Tree, String> {
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_containerfile::LANGUAGE.into()).map_err(|e| e.to_string())?;
-    parser.parse(src, None).ok_or_else(|| "parser failed".into())
+    parser
+        .set_language(&tree_sitter_containerfile::LANGUAGE.into())
+        .map_err(|e| e.to_string())?;
+    parser
+        .parse(src, None)
+        .ok_or_else(|| "parser failed".into())
 }
 
 fn error_count(node: Node) -> usize {
@@ -41,7 +45,11 @@ fn strip_ws(s: &str) -> impl Iterator<Item = char> + '_ {
 
 fn escape_char(src: &str) -> char {
     for line in src.lines() {
-        let Some((key, value)) = line.trim().strip_prefix('#').and_then(|d| d.split_once('=')) else {
+        let Some((key, value)) = line
+            .trim()
+            .strip_prefix('#')
+            .and_then(|d| d.split_once('='))
+        else {
             break;
         };
         let key = key.trim();
@@ -84,7 +92,10 @@ fn scan(line: &str, esc: char, mut q: Quote) -> Quote {
 
 fn heredoc_names(line: &str, out: &mut Vec<(String, bool)>) {
     for word in line.split_whitespace() {
-        let Some(rest) = word.trim_start_matches(|c: char| c.is_ascii_digit()).strip_prefix("<<") else {
+        let Some(rest) = word
+            .trim_start_matches(|c: char| c.is_ascii_digit())
+            .strip_prefix("<<")
+        else {
             continue;
         };
         let (strip, rest) = match rest.strip_prefix('-') {
@@ -123,7 +134,11 @@ fn normalize_arrays(src: &str, tree: &Tree) -> String {
             let children: Vec<Node> = node.named_children(&mut c).collect();
             if children.iter().all(|n| n.kind() == "json_string") {
                 let items: Vec<&str> = children.iter().map(|n| &src[n.byte_range()]).collect();
-                edits.push((node.start_byte(), node.end_byte(), format!("[{}]", items.join(", "))));
+                edits.push((
+                    node.start_byte(),
+                    node.end_byte(),
+                    format!("[{}]", items.join(", ")),
+                ));
             }
         }
         if cursor.goto_first_child() {
@@ -198,7 +213,10 @@ fn instruction(src: &[&str], i: usize, esc: char, opts: &Options, out: &mut Vec<
     }
 
     let mut heredocs = Vec::new();
-    if HEREDOC_INSTRUCTIONS.iter().any(|h| h.eq_ignore_ascii_case(keyword)) {
+    if HEREDOC_INSTRUCTIONS
+        .iter()
+        .any(|h| h.eq_ignore_ascii_case(keyword))
+    {
         for line in src[i..=end].iter().filter(|l| !is_skipped(l)) {
             heredoc_names(line, &mut heredocs);
         }
@@ -250,7 +268,11 @@ fn layout(src: &str, opts: &Options) -> String {
     while result.last().is_some_and(|l| blank(l)) {
         result.pop();
     }
-    let mut text = result.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");
+    let mut text = result
+        .iter()
+        .map(|l| l.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
     text.push('\n');
     text
 }
